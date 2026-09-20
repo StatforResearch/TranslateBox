@@ -1,0 +1,35 @@
+{
+  "summary": "Iteration 7 full verification of minimalist redesign + frontend info-disclosure security fix. Backend: 22/22 pytest passing (12 core + 10 security, excluding rate-limit burn test to preserve bucket for UI tests). All security headers still present, secret safety confirmed (no sk-), en/fr/es/de/ja mint ek_ + audio.output.language matches; invalid target -> 400. Frontend: minimalist Console renders with fixed 'Auto-detect' Source card and TARGET-only combobox (13 options with native names Español/日本語/Français etc). All required data-testids present (target-language-select, target-language-select-search, audio-device-select, audio-level-meter, test-input-button, start-translation-button, mute-input/mute-translation/restart-translation/settings buttons, 4 status dots, session-timer-display, latency-display, both transcript panels/texts, fullscreen-transcript-button). No legacy direction-fr-en/direction-en-fr toggles. Search 'spa' -> Spanish filters to 1; label becomes 'TRANSLATION — SPANISH'. Search 'jap' -> Japanese label 'TRANSLATION — JAPANESE'. Selecting target=German + START posts exactly one POST to /api/realtime-session with body target_language='de'. SECURITY FIX VERIFIED: after the OpenAI /calls 429, the error-banner shows GENERIC 'The translation service is temporarily unavailable (quota limit reached). Please try again later.' — no 'insufficient_quota', no billing URL, no raw OpenAI JSON; START button restored (no crash). Settings dialog opens with all mode-*/profile-*/save-transcripts-toggle/export-txt-button/export-pdf-button testids; mode-custom reveals custom-instructions-input; save-transcripts-toggle defaults unchecked visually. Sermon mode + Event 'Sunday Service' + biblical vocab 'Holy Spirit' + target=English -> POST instructions is non-empty and contains 'Sunday Service', 'Holy Spirit', 'biblical', and 'into English'. TEST INPUT: 0 /api/realtime-session POSTs during metering; stop-test-input-button appears and stopping restores test-input-button. Fullscreen overlay opens and exit closes it. /debug loads, tabs (logs, events) click, no 'sk-' anywhere in DOM.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Source card", "issues": ["Small i18n inconsistency: card shows '70+ langues' (French) in the top-right subtext while the rest of the UI is English. Consider '70+ languages' for consistency."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_translatebox.py",
+    "/app/backend/tests/test_security_hardening.py",
+    "/app/test_reports/pytest/translatebox_iter7.xml",
+    "/app/test_reports/pytest/sec_iter7.xml"
+  ],
+  "action_items": [
+    "Minor: unify '70+ langues' -> '70+ languages' in Console.jsx Source card (design consistency).",
+    "Minor testability: [data-testid=save-transcripts-toggle] is on the <label>, not the <input>; consider putting the testid on the input so aria/checked can be introspected directly (functionality is fine)."
+  ],
+  "critical_code_review_comments": [
+    "translationEngine.js _connect() correctly drops the raw OpenAI /calls response body from the propagated Error (throws 'OPENAI_CONNECT:<status>:' with no detail); raw body only reaches console.error. TranslationContext.mapError() converts 429 to the required generic string. Info-disclosure gap from iter_6 is closed.",
+    "Compiled instructions include the target-language name via profiles.compileInstructions({targetName}), and TranslationContext.start() resolves targetName from getTarget(targetLang).name — matches new spec.",
+    "Backend rate limit is per-process in-memory (20/60s); still fine for this preview but note for scale.",
+    "LanguageCombobox correctly exposes both a stable trigger testid and a search-input testid ('<testId>-search'), and encodes name|native|code in the CommandItem value so search matches on all three."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (22/22 pytest; rate-limit test skipped intentionally to preserve bucket)", "frontend": "100% of iteration_7 test matrix passing"},
+  "test_credentials": "N/A (no app auth)",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend regression + security suites live at /app/backend/tests/test_translatebox.py and /app/backend/tests/test_security_hardening.py. Always export REACT_APP_BACKEND_URL from frontend/.env before pytest. Backend rate limit is 20/60s per IP; test_zzz_rate_limit_triggers_429 (in security file) consumes the bucket and sleeps 65s — run it LAST or skip when combining with UI tests, otherwise concurrent START flows in the UI will hit 429 before reaching /calls. The frontend info-disclosure fix now lives in /app/frontend/src/lib/translationEngine.js (raw /calls body kept out of Error) + TranslationContext.mapError() (generic 429 message). If the OpenAI org gets credits, the /calls 429 will disappear and START should reach 'connected' — retest full transcript flow then.",
+  "rca of the issue": "N/A — all reported issues from prior iterations are now resolved."
+}

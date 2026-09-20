@@ -59,7 +59,7 @@ export default function Console() {
               <div className="mt-1.5 h-11 flex items-center gap-2 px-3 rounded-lg bg-slate-100 dark:bg-[#0F1623] border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300">
                 <Globe className="h-4 w-4 text-cyan-500" />
                 <span className="text-sm font-medium">Auto-detect</span>
-                <span className="ml-auto text-[10px] font-mono text-slate-400">70+ langues</span>
+                <span className="ml-auto text-[10px] font-mono text-slate-400">70+ languages</span>
               </div>
             </div>
             <div className="hidden md:flex items-center justify-center pb-2.5 text-slate-400"><ArrowRight className="h-5 w-5" /></div>
