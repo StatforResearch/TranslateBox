@@ -35,3 +35,44 @@ def test_root_api():
     r = requests.get(f"{BASE_URL}/api/", timeout=15)
     assert r.status_code == 200
     assert r.json().get("status") == "ok"
+
+
+# ---- Multi-language target support ----
+
+def _post_session(target):
+    return requests.post(f"{BASE_URL}/api/realtime-session", json={"target_language": target}, timeout=30)
+
+
+def test_realtime_session_target_es():
+    r = _post_session("es")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body.get("value", "").startswith("ek_")
+    assert body["session"]["audio"]["output"]["language"] == "es"
+
+
+def test_realtime_session_target_de():
+    r = _post_session("de")
+    assert r.status_code == 200, r.text
+    assert r.json()["session"]["audio"]["output"]["language"] == "de"
+
+
+def test_realtime_session_target_ja():
+    r = _post_session("ja")
+    assert r.status_code == 200, r.text
+    assert r.json()["session"]["audio"]["output"]["language"] == "ja"
+
+
+def test_realtime_session_unsupported_target_returns_400():
+    r = _post_session("xx")
+    assert r.status_code == 400
+    detail = r.json().get("detail", "")
+    # Should mention supported list
+    for code in ("en", "es", "fr", "de"):
+        assert code in detail
+
+
+def test_realtime_session_case_insensitive_target():
+    r = _post_session("FR")
+    assert r.status_code == 200, r.text
+    assert r.json()["session"]["audio"]["output"]["language"] == "fr"

@@ -1,0 +1,50 @@
+{
+  "summary": "Verified multi-language support end-to-end. Backend: 8/8 pytest pass — /api/health (openai_key_configured=true, model=gpt-realtime-translate), POST /api/realtime-session with target_language 'en','es','de','ja' each mint ek_... ephemeral and set session.audio.output.language to the requested code, 'FR' (uppercase) succeeds case-insensitively (output.language='fr'), unsupported 'xx' returns HTTP 400 listing supported codes. Frontend: three <select>s render with correct data-testids; source-language-select has 75 options (auto + 74 detectable), default 'auto'; target-language-select has exactly 13 options, default 'en'. Changing target -> Spanish updates right panel to 'TRANSLATION — SPANISH' and controls badge to 'AUTO → ES'; changing source -> French updates left panel to 'ORIGINAL — FRENCH' and badge to 'FRENCH → ES'. Pressing START posts EXACTLY {\"target_language\":\"es\"} to {REACT_APP_BACKEND_URL}/api/realtime-session (confirmed via network capture); backend mints ek_ ephemeral; browser creates SDP offer and posts to OpenAI /v1/realtime/translations/calls, which returns 429 insufficient_quota (account has no credits — same as iteration_2, external). App handles it cleanly: error-banner shows the 429 text, PeerConnection is torn down, start-translation-button returns, session-timer stays 00:00:00, no crash. Selectors are correctly wired as disabled={active}; after the (fast) error the app reverts to inactive so selectors are enabled again. Debug log stream (accessed via in-app nav to preserve state) contains 'Microphone stream acquired', 'Requesting ephemeral session from backend', 'Received ephemeral client secret', 'SDP offer created, posting to OpenAI' — full pipeline confirmed for target=ja too.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "OpenAI WebRTC /v1/realtime/translations/calls", "issue": "Returns 429 insufficient_quota — external OpenAI account has zero credits. App gracefully surfaces error and resets state; not a code bug.", "affected_selectors": ["[data-testid=error-banner]", "[data-testid=status-openai-dot]"]}
+    ],
+    "design_issues": []
+  },
+  "e2e_observations": {
+    "source_select_option_count": 75,
+    "target_select_option_count": 13,
+    "source_default": "auto",
+    "target_default": "en",
+    "post_body_on_start_target_es": "{\"target_language\":\"es\"}",
+    "panel_label_after_target_es": "TRANSLATION — SPANISH",
+    "panel_label_after_source_french": "ORIGINAL — FRENCH",
+    "controls_badge_after_french_es": "FRENCH → ES",
+    "openai_dot_final_state": "error",
+    "error_banner_text_prefix": "Failed to connect to OpenAI Realtime (429).",
+    "start_button_restored_after_error": true,
+    "selectors_disabled_while_active": "wired via `disabled={active}` in Console.jsx; observed False after the 429 revert (expected)",
+    "debug_log_lines_seen": [
+      "Microphone stream acquired {deviceId: default}",
+      "Requesting ephemeral session from backend",
+      "Received ephemeral client secret {expires_at:...}",
+      "SDP offer created, posting to OpenAI",
+      "Realtime data channel closed"
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_translatebox.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Add credits to the OpenAI org tied to OPENAI_API_KEY (same blocker as iteration_2) — required to observe a fully established WebRTC session; no app code change required."
+  ],
+  "critical_code_review_comments": [
+    "server.py: SUPPORTED_OUTPUT_LANGUAGES validation is clean, case-insensitive via .lower(), and error detail lists the sorted set — good.",
+    "Console.jsx: source select label uses `Auto-detected by the model across 70+ languages.` — matches SOURCE_LANGUAGES (auto + 74). Good.",
+    "Console.jsx badge uses `src.code.toUpperCase().slice(0,3)` which for named source codes produces 'FRE' (from 'French'), 'GER', etc. Not incorrect but slightly odd — codes are language *names* for non-auto sources rather than ISO codes. Consider mapping to ISO codes if a tighter badge is desired.",
+    "TranslationContext.start() passes targetLang through engine.start(deviceId, targetLang), which posts { target_language } — verified end-to-end via network capture."
+  ],
+  "updated_files": ["/app/backend/tests/test_translatebox.py", "/app/test_reports/iteration_3.json"],
+  "success_rate": {"backend": "100% (8/8 pytest)", "frontend": "100% wiring/UX; live WebRTC still 429 insufficient_quota (external)"},
+  "test_credentials": "N/A",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Multi-language support fully wired. Backend validates + forwards target_language (case-insensitive) into session.audio.output.language. Frontend has 3 selectors with correct testids, dynamic panel labels 'Original — <Language>' / 'Translation — <Language>', badge '<SRC> → <TGT>', and disabled={active}. On START, exactly {\"target_language\":\"<code>\"} is POSTed to /api/realtime-session. OpenAI /calls still returns 429 insufficient_quota — funded key needed to observe a connected session. Reuse /app/backend/tests/test_translatebox.py (8 tests) for regression. To verify debug logs, navigate via in-app link (debug-nav-link), NOT page.goto — the log store is React context and resets on hard nav.",
+  "rca of the issue": "No app-side issue. The only failure is external: OpenAI /v1/realtime/translations/calls -> 429 insufficient_quota. Mitigation: fund the OpenAI org, no code change."
+}
