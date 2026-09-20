@@ -18,7 +18,7 @@ const Field = ({ label, value, ok }) => (
 );
 
 export default function Debug() {
-  const { status, logs, rawEvents, duration, active, error, selectedDevice, devices, metrics, captureSource } = useTranslationSession();
+  const { status, logs, rawEvents, duration, active, error, selectedDevice, devices } = useTranslationSession();
   const [tab, setTab] = useState("logs");
   const logRef = useRef(null);
   const evtRef = useRef(null);
@@ -53,18 +53,10 @@ export default function Debug() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Field label="Session Active" value={active ? "TRUE" : "FALSE"} ok={active} />
           <Field label="Session Duration" value={`${duration}s`} />
-          <Field label="Audio Input" value={status.mic} />
+          <Field label="Microphone" value={status.mic} />
           <Field label="OpenAI Session" value={status.openai} />
           <Field label="Translation" value={status.translation} />
-          <Field label="Output Audio" value={status.outputAudio || "idle"} />
           <Field label="Network" value={status.network} />
-          <Field label="Reconnect Attempts" value={status.reconnectCount ?? 0} />
-          <Field label="WebRTC (PC) State" value={metrics.pcState || "—"} />
-          <Field label="ICE Connection State" value={metrics.iceState || "—"} />
-          <Field label="Last Latency" value={metrics.latencyMs ? `${metrics.latencyMs} ms` : "—"} />
-          <Field label="Est. Avg Latency" value={metrics.avgLatencyMs ? `${metrics.avgLatencyMs} ms` : "—"} />
-          <Field label="Instructions Applied" value={metrics.instructionsApplied ? "yes" : "no"} />
-          <Field label="Capture Source" value={captureSource} />
           <Field label="Input Device" value={deviceLabel} />
           <Field label="Last Error" value={error ? "yes" : "none"} />
         </div>

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
 import { TranslationEngine } from "../lib/translationEngine";
+import { DIRECTIONS, MODES, EMPTY_PROFILE, compileInstructions } from "../lib/profiles";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -7,25 +8,49 @@ const API = `${BACKEND_URL}/api`;
 const Ctx = createContext(null);
 export const useTranslationSession = () => useContext(Ctx);
 
-const INITIAL_STATUS = { mic: "idle", openai: "standby", translation: "standby", network: "optimal" };
+const INITIAL_STATUS = {
+  mic: "idle",
+  openai: "standby",
+  translation: "standby",
+  outputAudio: "idle",
+  network: "optimal",
+  reconnectCount: 0,
+};
 
 function mapError(err) {
   const msg = err?.message || String(err);
-  const [code, , ...rest] = msg.split(":");
-  const detail = rest.join(":");
+  const parts = msg.split(":");
+  const code = parts[0];
+  const detail = parts.slice(2).join(":");
   switch (code) {
     case "MIC_PERMISSION":
-      return "Microphone access was denied. Please allow microphone permission in your browser and try again.";
+      return "Input access was denied. Allow microphone (or screen/tab audio) permission and try again.";
     case "NO_AUDIO_INPUT":
-      return "No audio input detected on the selected device. Check your microphone or USB audio interface.";
+      return detail || "No audio input detected. Check your microphone or USB audio interface.";
     case "SESSION_TOKEN":
       return `Could not start a translation session. ${detail || "The OpenAI API key may be missing on the server."}`;
     case "OPENAI_CONNECT":
-      return `Failed to connect to OpenAI Realtime (${msg.split(":")[1]}). ${detail?.slice(0, 200) || ""}`;
+      return `Failed to connect to OpenAI Realtime (${parts[1]}). ${detail?.slice(0, 220) || ""}`;
     default:
       return msg;
   }
 }
+
+const LS = {
+  get(key, fallback) {
+    try {
+      const v = localStorage.getItem(key);
+      return v ? JSON.parse(v) : fallback;
+    } catch {
+      return fallback;
+    }
+  },
+  set(key, val) {
+    try {
+      localStorage.setItem(key, JSON.stringify(val));
+    } catch {}
+  },
+};
 
 export function TranslationProvider({ children }) {
   const [status, setStatus] = useState(INITIAL_STATUS);
@@ -35,12 +60,21 @@ export function TranslationProvider({ children }) {
   const [rawEvents, setRawEvents] = useState([]);
   const [error, setError] = useState(null);
   const [active, setActive] = useState(false);
-  const [muted, setMuted] = useState(false);
+  const [translationMuted, setTranslationMuted] = useState(false);
+  const [inputMuted, setInputMuted] = useState(false);
   const [duration, setDuration] = useState(0);
+  const [translatedSeconds, setTranslatedSeconds] = useState(0);
   const [devices, setDevices] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState("");
-  const [sourceLang, setSourceLang] = useState("auto");
-  const [targetLang, setTargetLang] = useState("en");
+  const [captureSource, setCaptureSource] = useState("mic"); // 'mic' | 'display'
+  const [direction, setDirection] = useState(() => LS.get("tbl-direction", "fr-en"));
+  const [modeKey, setModeKey] = useState(() => LS.get("tbl-mode", "GENERAL"));
+  const [customInstructions, setCustomInstructions] = useState(() => LS.get("tbl-custom", ""));
+  const [profile, setProfile] = useState(() => LS.get("tbl-profile", EMPTY_PROFILE));
+  const [saveTranscripts, setSaveTranscripts] = useState(() => LS.get("tbl-save", false));
+  const [level, setLevel] = useState({ level: 0, peak: 0 });
+  const [testing, setTesting] = useState(false);
+  const [metrics, setMetrics] = useState({ latencyMs: null, avgLatencyMs: null, instructionsApplied: false, pcState: "", iceState: "" });
 
   const engineRef = useRef(null);
   const audioRef = useRef(null);
@@ -62,12 +96,20 @@ export function TranslationProvider({ children }) {
           });
         },
         onLog: (entry) => setLogs((l) => [...l.slice(-499), entry]),
-        onRawEvent: (ev) =>
-          setRawEvents((r) => [...r.slice(-199), { ts: new Date().toISOString(), ev }]),
+        onRawEvent: (ev) => setRawEvents((r) => [...r.slice(-199), { ts: new Date().toISOString(), ev }]),
         onError: (msg) => setError(msg),
+        onLevel: (lv) => setLevel(lv),
+        onMetrics: (m) => setMetrics((prev) => ({ ...prev, ...m })),
       },
     });
   }
+
+  // persist config
+  useEffect(() => LS.set("tbl-direction", direction), [direction]);
+  useEffect(() => LS.set("tbl-mode", modeKey), [modeKey]);
+  useEffect(() => LS.set("tbl-custom", customInstructions), [customInstructions]);
+  useEffect(() => LS.set("tbl-profile", profile), [profile]);
+  useEffect(() => LS.set("tbl-save", saveTranscripts), [saveTranscripts]);
 
   const loadDevices = useCallback(async () => {
     try {
@@ -82,22 +124,38 @@ export function TranslationProvider({ children }) {
   useEffect(() => {
     engineRef.current.attachAudio(audioRef.current);
     loadDevices();
-    const onOnline = () =>
-      setStatus((s) => ({ ...s, network: engineRef.current.active ? "degraded" : "optimal" }));
+    const onOnline = () => setStatus((s) => ({ ...s, network: engineRef.current.active ? "degraded" : "optimal" }));
     const onOffline = () => setStatus((s) => ({ ...s, network: "offline" }));
-    navigator.mediaDevices?.addEventListener?.("devicechange", loadDevices);
+    const onDeviceChange = async () => {
+      await loadDevices();
+      // If the active input device vanished, notify the operator.
+      const eng = engineRef.current;
+      if (eng.active && eng.captureSource === "mic" && selectedDevice) {
+        const list = await eng.listDevices();
+        if (!list.find((d) => d.deviceId === selectedDevice)) {
+          setError("The selected audio input device was disconnected. Choose another input device.");
+          setStatus((s) => ({ ...s, mic: "error" }));
+        }
+      }
+    };
+    navigator.mediaDevices?.addEventListener?.("devicechange", onDeviceChange);
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
     return () => {
-      navigator.mediaDevices?.removeEventListener?.("devicechange", loadDevices);
+      navigator.mediaDevices?.removeEventListener?.("devicechange", onDeviceChange);
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
     };
-  }, [loadDevices]);
+  }, [loadDevices, selectedDevice]);
 
   const startTimer = () => {
-    setDuration(0);
-    timerRef.current = setInterval(() => setDuration((d) => d + 1), 1000);
+    timerRef.current = setInterval(() => {
+      setDuration((d) => d + 1);
+      setStatus((s) => {
+        if (s.translation === "interpreting") setTranslatedSeconds((t) => t + 1);
+        return s;
+      });
+    }, 1000);
   };
   const stopTimer = () => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -108,22 +166,44 @@ export function TranslationProvider({ children }) {
     setError(null);
     setSourceText("");
     setTargetText("");
+    setDuration(0);
+    setTranslatedSeconds(0);
+    setTesting(false);
+    const dir = DIRECTIONS[direction];
+    const instructions = compileInstructions({ modeKey, customText: customInstructions, direction, profile });
     try {
-      await engineRef.current.start(selectedDevice, targetLang);
+      await engineRef.current.start({
+        deviceId: selectedDevice,
+        source: captureSource,
+        targetLanguage: dir.targetCode,
+        instructions,
+      });
       setActive(true);
       startTimer();
-      loadDevices(); // refresh labels now that permission is granted
+      loadDevices();
     } catch (e) {
       setError(mapError(e));
       setActive(false);
     }
-  }, [selectedDevice, targetLang, loadDevices]);
+  }, [selectedDevice, captureSource, direction, modeKey, customInstructions, profile, loadDevices]);
 
   const stop = useCallback(() => {
     engineRef.current.stop();
     setActive(false);
     stopTimer();
-  }, []);
+    if (!saveTranscripts) {
+      setSourceText("");
+      setTargetText("");
+    }
+  }, [saveTranscripts]);
+
+  const restart = useCallback(async () => {
+    engineRef.current.stop();
+    setActive(false);
+    stopTimer();
+    await new Promise((r) => setTimeout(r, 300));
+    await start();
+  }, [start]);
 
   const reset = useCallback(() => {
     engineRef.current.stop();
@@ -133,41 +213,57 @@ export function TranslationProvider({ children }) {
     setTargetText("");
     setError(null);
     setDuration(0);
+    setTranslatedSeconds(0);
     setRawEvents([]);
-    setMuted(false);
-    engineRef.current.setMuted(false);
+    setTranslationMuted(false);
+    setInputMuted(false);
+    engineRef.current.setTranslationMuted(false);
+    setMetrics({ latencyMs: null, avgLatencyMs: null, instructionsApplied: false, pcState: "", iceState: "" });
   }, []);
 
-  const toggleMute = useCallback(() => {
-    setMuted((m) => {
+  const toggleTranslationMute = useCallback(() => {
+    setTranslationMuted((m) => {
       const next = !m;
-      engineRef.current.setMuted(next);
+      engineRef.current.setTranslationMuted(next);
       return next;
     });
   }, []);
 
+  const toggleInputMute = useCallback(() => {
+    setInputMuted((m) => {
+      const next = !m;
+      engineRef.current.setInputMuted(next);
+      return next;
+    });
+  }, []);
+
+  const testInput = useCallback(async () => {
+    setError(null);
+    try {
+      await engineRef.current.testInput(selectedDevice, captureSource);
+      setTesting(true);
+    } catch (e) {
+      setError(mapError(e));
+      setTesting(false);
+    }
+  }, [selectedDevice, captureSource]);
+
+  const stopTest = useCallback(async () => {
+    await engineRef.current.stopTest();
+    setTesting(false);
+  }, []);
+
   const value = {
-    status,
-    sourceText,
-    targetText,
-    logs,
-    rawEvents,
-    error,
-    active,
-    muted,
-    duration,
-    devices,
-    selectedDevice,
-    setSelectedDevice,
-    sourceLang,
-    setSourceLang,
-    targetLang,
-    setTargetLang,
-    start,
-    stop,
-    reset,
-    toggleMute,
+    status, sourceText, targetText, logs, rawEvents, error, active,
+    translationMuted, inputMuted, duration, translatedSeconds,
+    devices, selectedDevice, setSelectedDevice, captureSource, setCaptureSource,
+    direction, setDirection, modeKey, setModeKey, customInstructions, setCustomInstructions,
+    profile, setProfile, saveTranscripts, setSaveTranscripts,
+    level, testing, metrics,
+    start, stop, restart, reset,
+    toggleTranslationMute, toggleInputMute, testInput, stopTest,
     clearError: () => setError(null),
+    MODES, DIRECTIONS,
   };
 
   return (

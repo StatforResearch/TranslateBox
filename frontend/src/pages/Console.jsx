@@ -1,218 +1,256 @@
-import React from "react";
-import { Play, Square, Mic, VolumeX, Volume2, RotateCcw, Radio, Cpu, Wifi, Languages, AlertTriangle, X, ArrowLeftRight } from "lucide-react";
+import React, { useState } from "react";
+import {
+  Play, Square, MicOff, Mic, VolumeX, Volume2, RotateCcw, Radio, Cpu, Wifi, Speaker,
+  AlertTriangle, X, Maximize2, Minimize2, Download, FileText, Save, Gauge,
+} from "lucide-react";
 import { useTranslationSession } from "../context/TranslationContext";
 import { Header } from "../components/Header";
 import { StatusIndicator } from "../components/StatusIndicator";
 import { TranscriptPanel } from "../components/TranscriptPanel";
-import { LanguageCombobox } from "../components/LanguageCombobox";
-import { SOURCE_LANGUAGES, TARGET_LANGUAGES, getSource, getTarget, sourceLabel, sourceToTargetCode, targetToSourceCode } from "../lib/languages";
-
-const fmt = (s) => {
-  const h = String(Math.floor(s / 3600)).padStart(2, "0");
-  const m = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
-  const sec = String(s % 60).padStart(2, "0");
-  return `${h}:${m}:${sec}`;
-};
+import { AudioSetup } from "../components/AudioSetup";
+import { EventProfileDialog } from "../components/EventProfileDialog";
+import { SessionInfo } from "../components/SessionInfo";
 
 export default function Console() {
   const {
-    status, sourceText, targetText, error, active, muted, duration,
-    devices, selectedDevice, setSelectedDevice,
-    sourceLang, setSourceLang, targetLang, setTargetLang,
-    start, stop, reset, toggleMute, clearError,
+    status, sourceText, targetText, error, active, translationMuted, inputMuted,
+    direction, setDirection, modeKey, setModeKey, customInstructions, setCustomInstructions,
+    saveTranscripts, setSaveTranscripts, metrics, profile,
+    start, stop, restart, toggleTranslationMute, toggleInputMute, clearError,
+    MODES, DIRECTIONS,
   } = useTranslationSession();
 
-  const micState = active ? (muted ? "muted" : status.mic) : status.mic;
-  const src = getSource(sourceLang);
-  const tgt = getTarget(targetLang);
-  const selectClass =
-    "mt-1.5 w-full h-11 rounded-lg bg-slate-100 dark:bg-[#0F1623] border border-slate-300 dark:border-slate-700 px-3 text-sm font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60";
-  const labelClass = "text-xs font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 font-mono";
+  const [fullscreen, setFullscreen] = useState(false);
+  const dir = DIRECTIONS[direction];
+  const micState = active ? (inputMuted ? "muted" : status.mic) : status.mic;
 
-  // Swap source <-> target. Target must be one of the 13 output languages, so we
-  // map the current source (if it's a supported output language) into the target.
-  const swapLanguages = () => {
-    if (active) return;
-    const newTargetCode = sourceToTargetCode(sourceLang) || targetLang;
-    const newSourceCode = targetToSourceCode(targetLang);
-    setTargetLang(newTargetCode);
-    setSourceLang(newSourceCode);
+  const latencyText = metrics.avgLatencyMs
+    ? metrics.avgLatencyMs >= 1000
+      ? `${(metrics.avgLatencyMs / 1000).toFixed(1)} s`
+      : `${metrics.avgLatencyMs} ms`
+    : "—";
+
+  const buildTranscript = () => {
+    const now = new Date();
+    return [
+      "TranslateBox Live — Transcript",
+      `Event: ${profile.eventName || "—"}`,
+      `Organization: ${profile.organization || "—"}`,
+      `Date/time: ${now.toLocaleString()}`,
+      `Direction: ${dir.badge}`,
+      `Source language: ${dir.source}`,
+      `Target language: ${dir.target}`,
+      "",
+      `===== SOURCE — ${dir.source.toUpperCase()} =====`,
+      sourceText || "(empty)",
+      "",
+      `===== TRANSLATION — ${dir.target.toUpperCase()} =====`,
+      targetText || "(empty)",
+      "",
+    ].join("\n");
   };
-  const swapDisabled = active || sourceLang === "auto";
+
+  const exportTxt = () => {
+    const blob = new Blob([buildTranscript()], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `translatebox-${(profile.eventName || "session").replace(/\s+/g, "-")}-${Date.now()}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportPdf = () => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+    w.document.write(`<html><head><title>TranslateBox Transcript</title>
+      <style>body{font-family:-apple-system,Segoe UI,sans-serif;padding:32px;color:#0f172a;line-height:1.6}
+      h1{font-size:20px}h2{font-size:14px;text-transform:uppercase;letter-spacing:.1em;color:#0891b2;margin-top:24px}
+      .meta{font-size:12px;color:#475569}pre{white-space:pre-wrap;font-family:inherit;font-size:14px}</style></head><body>
+      <h1>TranslateBox Live — Transcript</h1>
+      <div class="meta">Event: ${esc(profile.eventName || "—")}<br/>Organization: ${esc(profile.organization || "—")}<br/>
+      Date/time: ${new Date().toLocaleString()}<br/>Direction: ${dir.badge} (${dir.source} → ${dir.target})</div>
+      <h2>Source — ${dir.source}</h2><pre>${esc(sourceText || "(empty)")}</pre>
+      <h2>Translation — ${dir.target}</h2><pre>${esc(targetText || "(empty)")}</pre>
+      </body></html>`);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 300);
+  };
+
+  const dirBtn = (key) => `flex-1 flex items-center justify-center gap-2 h-12 rounded-xl font-bold uppercase tracking-wide text-sm border-2 transition-colors disabled:opacity-50 ${
+    direction === key
+      ? "bg-emerald-500/15 border-emerald-500 text-emerald-600 dark:text-emerald-400"
+      : "border-slate-300 dark:border-slate-700 text-slate-500 hover:border-slate-400"
+  }`;
+
+  const transcriptPanels = (
+    <>
+      <TranscriptPanel label={`Source — ${dir.source}`} badge={direction === "fr-en" ? "FR" : "EN"} accent="cyan" text={sourceText} active={active} panelTestId="original-transcript-panel" textTestId="original-transcript-text" />
+      <TranscriptPanel label={`Translation — ${dir.target}`} badge={dir.targetCode.toUpperCase()} accent="emerald" text={targetText} active={active} panelTestId="translated-transcript-panel" textTestId="translated-transcript-text" />
+    </>
+  );
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-[#0A0D14] text-slate-900 dark:text-slate-100 font-sans">
       <Header />
 
-      <main className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-5 md:space-y-6 flex flex-col">
-        {/* Language + device row */}
-        <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="rounded-xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 px-5 py-4">
-            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-3 items-end">
-              <div>
-                <label className={labelClass}>Source Language</label>
-                <LanguageCombobox
-                  options={SOURCE_LANGUAGES}
-                  value={sourceLang}
-                  onChange={setSourceLang}
-                  disabled={active}
-                  testId="source-language-select"
-                />
-              </div>
-              <button
-                type="button"
-                data-testid="swap-languages-button"
-                onClick={swapLanguages}
-                disabled={swapDisabled}
-                title={swapDisabled ? "Set a specific source language to swap" : "Swap source and target"}
-                className="hidden sm:flex mb-0.5 h-11 w-11 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-emerald-500/10 hover:text-emerald-500 hover:border-emerald-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-600 disabled:hover:border-slate-300 dark:disabled:hover:border-slate-700"
-              >
-                <ArrowLeftRight className="h-5 w-5" />
-              </button>
-              <div>
-                <label className={labelClass}>Target Language</label>
-                <LanguageCombobox
-                  options={TARGET_LANGUAGES}
-                  value={targetLang}
-                  onChange={setTargetLang}
-                  disabled={active}
-                  testId="target-language-select"
-                />
-              </div>
-            </div>
-            <div className="mt-2 flex items-center justify-between">
-              <p className="text-[10px] text-slate-400 dark:text-slate-600 font-mono">Source auto-detected (70+). Target: 13 output languages.</p>
-              <button
-                type="button"
-                onClick={swapLanguages}
-                disabled={swapDisabled}
-                className="sm:hidden inline-flex items-center gap-1 text-[11px] font-mono uppercase tracking-wider text-emerald-600 dark:text-emerald-400 disabled:opacity-40"
-              >
-                <ArrowLeftRight className="h-3.5 w-3.5" /> Swap
-              </button>
-            </div>
+      {/* Fullscreen transcript overlay */}
+      {fullscreen && (
+        <div className="fixed inset-0 z-[60] bg-slate-100 dark:bg-[#0A0D14] p-4 md:p-8 flex flex-col" data-testid="fullscreen-transcript">
+          <div className="flex items-center justify-between mb-4">
+            <span className="font-mono uppercase tracking-widest text-sm text-slate-500">{dir.badge} · Live Transcript</span>
+            <button onClick={() => setFullscreen(false)} data-testid="exit-fullscreen-button" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-800">
+              <Minimize2 className="h-4 w-4" /> Exit
+            </button>
           </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0">{transcriptPanels}</div>
+        </div>
+      )}
 
-          <div className="rounded-xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 px-5 py-4 flex flex-col justify-center">
-            <label htmlFor="audio-device" className={labelClass}>
-              Audio Input Device
-            </label>
-            <select
-              id="audio-device"
-              data-testid="audio-device-select"
-              value={selectedDevice}
-              disabled={active}
-              onChange={(e) => setSelectedDevice(e.target.value)}
-              className={selectClass}
-            >
-              {devices.length === 0 && <option value="">Default microphone</option>}
-              {devices.map((d, i) => (
-                <option key={d.deviceId || i} value={d.deviceId}>
-                  {d.label || `Microphone ${i + 1}`}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1.5 text-[10px] text-slate-400 dark:text-slate-600 font-mono">Microphone or connected USB audio interface.</p>
+      <main className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-5">
+        {/* Summary bar */}
+        <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="rounded-xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 px-4 py-3">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400">Event</p>
+            <p data-testid="summary-event" className="text-sm md:text-base font-bold truncate">{profile.eventName || "Untitled event"}</p>
+          </div>
+          <div className="rounded-xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 px-4 py-3">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400">Translation</p>
+            <p data-testid="summary-direction" className="text-sm md:text-base font-bold">{dir.badge}</p>
+          </div>
+          <div className="rounded-xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 px-4 py-3">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400">Mode</p>
+            <p data-testid="summary-mode" className="text-sm md:text-base font-bold truncate">{MODES[modeKey].label}</p>
+          </div>
+          <div className="rounded-xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 px-4 py-3 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400">Est. latency</p>
+              <p data-testid="latency-display" className="text-sm md:text-base font-bold">{latencyText}</p>
+            </div>
+            <Gauge className="h-5 w-5 text-amber-500" />
           </div>
         </section>
 
-        {/* Status bar */}
-        <section className="rounded-xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 p-4 flex flex-col lg:flex-row items-stretch lg:items-center gap-4 justify-between">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 flex-1">
-            <StatusIndicator name="Microphone" icon={Mic} state={micState} testId="status-mic-dot" />
+        {/* Status row */}
+        <section className="rounded-2xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 p-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+            <StatusIndicator name="Audio Input" icon={Mic} state={micState} testId="status-mic-dot" />
             <StatusIndicator name="OpenAI" icon={Cpu} state={status.openai} testId="status-openai-dot" />
             <StatusIndicator name="Translation" icon={Radio} state={status.translation} testId="status-translation-dot" />
+            <StatusIndicator name="Output Audio" icon={Speaker} state={translationMuted ? "muted" : status.outputAudio} testId="status-output-dot" />
             <StatusIndicator name="Network" icon={Wifi} state={status.network} testId="status-network-dot" />
           </div>
-          <div className="flex flex-col items-center lg:items-end justify-center px-4 lg:border-l border-slate-200 dark:border-slate-800">
-            <span className="text-[10px] font-medium uppercase tracking-widest text-slate-400 dark:text-slate-500 font-mono">Session</span>
-            <span data-testid="session-timer-display" className="text-2xl md:text-3xl font-extrabold font-mono text-emerald-600 dark:text-emerald-400 tabular-nums tracking-tight">
-              {fmt(duration)}
-            </span>
-          </div>
         </section>
+
+        {/* Configuration: direction + mode + profile */}
+        <section className="rounded-2xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 p-4 md:p-5 space-y-4">
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="flex-1">
+              <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 font-mono mb-1.5">Translation Direction</p>
+              <div className="flex gap-3">
+                <button data-testid="direction-fr-en" onClick={() => setDirection("fr-en")} disabled={active} className={dirBtn("fr-en")}>🇫🇷 FR → EN 🇬🇧</button>
+                <button data-testid="direction-en-fr" onClick={() => setDirection("en-fr")} disabled={active} className={dirBtn("en-fr")}>🇬🇧 EN → FR 🇫🇷</button>
+              </div>
+            </div>
+            <div className="flex-1">
+              <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 font-mono mb-1.5">Translation Mode</p>
+              <div className="flex flex-wrap gap-2">
+                {Object.values(MODES).map((m) => (
+                  <button
+                    key={m.key}
+                    data-testid={`mode-${m.key.toLowerCase()}`}
+                    onClick={() => setModeKey(m.key)}
+                    disabled={active}
+                    className={`px-3 py-2 rounded-lg text-xs font-semibold uppercase tracking-wide border transition-colors disabled:opacity-50 ${modeKey === m.key ? "bg-cyan-500/15 border-cyan-500 text-cyan-600 dark:text-cyan-400" : "border-slate-300 dark:border-slate-700 text-slate-500 hover:border-slate-400"}`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-end">
+              <EventProfileDialog />
+            </div>
+          </div>
+          {modeKey === "CUSTOM" && (
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 font-mono">Custom Instructions</label>
+              <textarea
+                data-testid="custom-instructions-input"
+                value={customInstructions}
+                disabled={active}
+                onChange={(e) => setCustomInstructions(e.target.value)}
+                rows={3}
+                placeholder="Write your own interpreter instructions…"
+                className="mt-1 w-full rounded-lg bg-slate-100 dark:bg-[#0F1623] border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60"
+              />
+            </div>
+          )}
+          {metrics.instructionsApplied === false && active && (
+            <p className="text-[11px] text-amber-600 dark:text-amber-400 font-mono">Note: the current translation model applied the base interpreter behavior; custom vocabulary is included in exports.</p>
+          )}
+        </section>
+
+        {/* Audio setup */}
+        <AudioSetup />
 
         {/* Error banner */}
         {error && (
           <div data-testid="error-banner" className="flex items-start gap-3 rounded-xl border border-red-300 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-red-700 dark:text-red-300">
             <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
             <p className="flex-1 text-sm font-medium">{error}</p>
-            <button onClick={clearError} data-testid="dismiss-error-button" className="shrink-0 opacity-70 hover:opacity-100">
-              <X className="h-4 w-4" />
-            </button>
+            <button onClick={clearError} data-testid="dismiss-error-button" className="shrink-0 opacity-70 hover:opacity-100"><X className="h-4 w-4" /></button>
           </div>
         )}
 
         {/* Controls */}
-        <section className="rounded-2xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 p-4 md:p-5 shadow-xl flex flex-col md:flex-row items-stretch md:items-center gap-3 md:gap-4">
+        <section className="rounded-2xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 p-4 md:p-5 shadow-xl flex flex-wrap items-stretch gap-3">
           {!active ? (
-            <button
-              data-testid="start-translation-button"
-              onClick={start}
-              className="flex-1 md:flex-none bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-lg md:text-xl py-4 px-8 rounded-xl shadow-lg shadow-emerald-900/30 active:scale-[0.98] transition-transform flex items-center gap-3 justify-center min-h-[56px]"
-            >
-              <Play className="h-6 w-6 fill-white" /> START TRANSLATION
+            <button data-testid="start-translation-button" onClick={start} className="flex-1 min-w-[220px] bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-lg md:text-xl py-4 px-8 rounded-xl shadow-lg shadow-emerald-900/30 active:scale-[0.98] transition-transform flex items-center gap-3 justify-center min-h-[56px]">
+              <Play className="h-6 w-6 fill-white" /> START
             </button>
           ) : (
-            <button
-              data-testid="stop-translation-button"
-              onClick={stop}
-              className="flex-1 md:flex-none bg-red-600 hover:bg-red-500 text-white font-bold text-lg md:text-xl py-4 px-8 rounded-xl shadow-lg shadow-red-900/30 active:scale-[0.98] transition-transform flex items-center gap-3 justify-center min-h-[56px]"
-            >
+            <button data-testid="stop-translation-button" onClick={stop} className="flex-1 min-w-[160px] bg-red-600 hover:bg-red-500 text-white font-bold text-lg md:text-xl py-4 px-8 rounded-xl shadow-lg shadow-red-900/30 active:scale-[0.98] transition-transform flex items-center gap-3 justify-center min-h-[56px]">
               <Square className="h-6 w-6 fill-white" /> STOP
             </button>
           )}
-
-          <button
-            data-testid="mute-audio-button"
-            onClick={toggleMute}
-            className={`flex items-center gap-2.5 justify-center font-semibold px-5 py-3 rounded-xl border transition-colors min-h-[56px] ${
-              muted
-                ? "bg-amber-500/15 border-amber-500 text-amber-600 dark:text-amber-400"
-                : "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-            }`}
-          >
-            {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
-            {muted ? "TRANSLATED AUDIO MUTED" : "MUTE TRANSLATED AUDIO"}
+          <button data-testid="mute-input-button" onClick={toggleInputMute} disabled={!active} className={`flex items-center gap-2 justify-center font-semibold px-5 rounded-xl border transition-colors min-h-[56px] disabled:opacity-40 ${inputMuted ? "bg-amber-500/15 border-amber-500 text-amber-600 dark:text-amber-400" : "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"}`}>
+            {inputMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />} MUTE INPUT
           </button>
-
-          <button
-            data-testid="reset-session-button"
-            onClick={reset}
-            className="flex items-center gap-2.5 justify-center font-semibold px-5 py-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors min-h-[56px]"
-          >
-            <RotateCcw className="h-5 w-5" /> RESET SESSION
+          <button data-testid="mute-translation-button" onClick={toggleTranslationMute} className={`flex items-center gap-2 justify-center font-semibold px-5 rounded-xl border transition-colors min-h-[56px] ${translationMuted ? "bg-amber-500/15 border-amber-500 text-amber-600 dark:text-amber-400" : "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"}`}>
+            {translationMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />} MUTE TRANSLATION
           </button>
-
-          <div className="hidden md:flex items-center gap-2 ml-auto text-slate-400 dark:text-slate-500 text-xs font-mono uppercase tracking-widest">
-            <Languages className="h-4 w-4" /> {src.code === "auto" ? "AUTO" : src.code.toUpperCase()} → {tgt.code.toUpperCase()}
+          <button data-testid="restart-translation-button" onClick={restart} disabled={!active} className="flex items-center gap-2 justify-center font-semibold px-5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors min-h-[56px] disabled:opacity-40">
+            <RotateCcw className="h-5 w-5" /> RESTART
+          </button>
+          <div className="flex items-center gap-2 px-4 rounded-xl border border-slate-200 dark:border-slate-800 min-h-[56px]" data-testid="translated-audio-status">
+            <Speaker className={`h-5 w-5 ${translationMuted ? "text-amber-500" : "text-emerald-500"}`} />
+            <span className="text-xs font-mono uppercase tracking-wide">{translationMuted ? "Translated: MUTED" : "Translated: ON"}</span>
           </div>
         </section>
 
-        {/* Transcripts */}
-        <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-          <TranscriptPanel
-            label={`Original — ${sourceLabel(sourceLang)}`}
-            badge={src.code === "auto" ? "SRC" : src.code.toUpperCase().slice(0, 3)}
-            accent="cyan"
-            text={sourceText}
-            active={active}
-            panelTestId="original-transcript-panel"
-            textTestId="original-transcript-text"
-          />
-          <TranscriptPanel
-            label={`Translation — ${tgt.name}`}
-            badge={tgt.code.toUpperCase()}
-            accent="emerald"
-            text={targetText}
-            active={active}
-            panelTestId="translated-transcript-panel"
-            textTestId="translated-transcript-text"
-          />
-        </section>
+        {/* Transcript toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <label className="flex items-center gap-2 cursor-pointer" data-testid="save-transcripts-toggle" >
+            <input type="checkbox" checked={saveTranscripts} onChange={(e) => setSaveTranscripts(e.target.checked)} className="h-4 w-4 accent-emerald-500" />
+            <span className="flex items-center gap-1.5 text-sm font-medium text-slate-600 dark:text-slate-300"><Save className="h-4 w-4" /> Save transcripts (default OFF)</span>
+          </label>
+          <div className="flex items-center gap-2">
+            <button data-testid="export-txt-button" onClick={exportTxt} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-800"><Download className="h-4 w-4" /> Export TXT</button>
+            <button data-testid="export-pdf-button" onClick={exportPdf} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-800"><FileText className="h-4 w-4" /> Export PDF</button>
+            <button data-testid="fullscreen-transcript-button" onClick={() => setFullscreen(true)} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-800"><Maximize2 className="h-4 w-4" /> Fullscreen</button>
+          </div>
+        </div>
 
-        <p className="text-center text-[11px] text-slate-400 dark:text-slate-600 font-mono pt-1">
-          Audio & transcripts are processed in real time and are not recorded or stored. Use headphones to prevent echo.
+        {/* Transcripts */}
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">{transcriptPanels}</section>
+
+        <SessionInfo />
+
+        <p className="text-center text-[11px] text-slate-400 dark:text-slate-600 font-mono">
+          Audio & transcripts are processed in real time and are not recorded or stored unless you enable "Save transcripts". Use headphones to prevent echo.
         </p>
       </main>
     </div>

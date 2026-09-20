@@ -1,5 +1,5 @@
 const OPENAI_CALLS_URL = "https://api.openai.com/v1/realtime/translations/calls";
-const MAX_RECONNECTS = 3;
+const MAX_RECONNECTS = 5;
 
 // Handles browser-to-OpenAI real-time translation over WebRTC.
 // The permanent API key stays on the server; this engine only ever sees the
@@ -14,9 +14,22 @@ export class TranslationEngine {
     this.audioEl = null;
     this.active = false;
     this.deviceId = null;
+    this.captureSource = "mic";
     this.targetLanguage = "en";
+    this.instructions = "";
     this.reconnectAttempts = 0;
     this._reconnecting = false;
+    // metering
+    this._audioCtx = null;
+    this._analyser = null;
+    this._meterSrc = null;
+    this._meterRAF = null;
+    this._testStream = null;
+    // latency
+    this._segStart = 0;
+    this._segActive = false;
+    this._segMeasured = false;
+    this._latencies = [];
   }
 
   log(level, message, data) {
@@ -29,6 +42,12 @@ export class TranslationEngine {
 
   attachAudio(el) {
     this.audioEl = el;
+    if (el) {
+      el.onplaying = () => {
+        this.setStatus({ outputAudio: el.muted ? "muted" : "active" });
+        this.log("info", "Translated audio playback started");
+      };
+    }
   }
 
   async listDevices() {
@@ -36,13 +55,122 @@ export class TranslationEngine {
     return devices.filter((d) => d.kind === "audioinput");
   }
 
+  // ---- audio capture ----
+  async _capture(deviceId, source) {
+    if (source === "display") {
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+        });
+      } catch (e) {
+        throw new Error("MIC_PERMISSION:" + e.name + ":" + e.message);
+      }
+      if (!stream.getAudioTracks().length) {
+        stream.getTracks().forEach((t) => t.stop());
+        throw new Error('NO_AUDIO_INPUT::No tab/screen audio was shared. Re-share and enable "Share tab audio".');
+      }
+      // We only need audio; stop the video track to save resources.
+      stream.getVideoTracks().forEach((t) => t.stop());
+      return stream;
+    }
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          deviceId: deviceId ? { exact: deviceId } : undefined,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+        video: false,
+      });
+    } catch (e) {
+      this.setStatus({ mic: "denied" });
+      throw new Error("MIC_PERMISSION:" + e.name + ":" + e.message);
+    }
+    if (!stream.getAudioTracks().length) {
+      stream.getTracks().forEach((t) => t.stop());
+      throw new Error("NO_AUDIO_INPUT::No audio track from the selected device.");
+    }
+    return stream;
+  }
+
+  // ---- input level meter (no output routing => no feedback) ----
+  _startMeter(stream) {
+    try {
+      this._audioCtx = this._audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      if (this._audioCtx.state === "suspended") this._audioCtx.resume().catch(() => {});
+      const src = this._audioCtx.createMediaStreamSource(stream);
+      const analyser = this._audioCtx.createAnalyser();
+      analyser.fftSize = 512;
+      src.connect(analyser);
+      this._meterSrc = src;
+      this._analyser = analyser;
+      const data = new Uint8Array(analyser.fftSize);
+      let peak = 0;
+      const loop = () => {
+        if (!this._analyser) return;
+        analyser.getByteTimeDomainData(data);
+        let sum = 0;
+        let p = 0;
+        for (let i = 0; i < data.length; i++) {
+          const v = (data[i] - 128) / 128;
+          sum += v * v;
+          if (Math.abs(v) > p) p = Math.abs(v);
+        }
+        const rms = Math.sqrt(sum / data.length);
+        peak = Math.max(peak * 0.92, p);
+        this.h.onLevel?.({ level: Math.min(1, rms * 2.6), peak: Math.min(1, peak) });
+        this._meterRAF = requestAnimationFrame(loop);
+      };
+      loop();
+    } catch (e) {
+      this.log("warn", "Level meter unavailable: " + e.message);
+    }
+  }
+
+  _stopMeter() {
+    if (this._meterRAF) cancelAnimationFrame(this._meterRAF);
+    this._meterRAF = null;
+    if (this._meterSrc) {
+      try {
+        this._meterSrc.disconnect();
+      } catch {}
+      this._meterSrc = null;
+    }
+    this._analyser = null;
+    this.h.onLevel?.({ level: 0, peak: 0 });
+  }
+
+  async testInput(deviceId, source = "mic") {
+    await this.stopTest();
+    const stream = await this._capture(deviceId, source);
+    this._testStream = stream;
+    this.setStatus({ mic: "active" });
+    this.log("info", "TEST INPUT started (metering only, not sent to OpenAI)", { deviceId, source });
+    this._startMeter(stream);
+  }
+
+  async stopTest() {
+    this._stopMeter();
+    if (this._testStream) {
+      this._testStream.getTracks().forEach((t) => t.stop());
+      this._testStream = null;
+      this.setStatus({ mic: "idle" });
+      this.log("info", "TEST INPUT stopped");
+    }
+  }
+
+  // ---- session ----
   async _getEphemeral() {
     this.setStatus({ openai: "connecting" });
     this.log("info", "Requesting ephemeral session from backend");
     const res = await fetch(`${this.apiBase}/realtime-session`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ target_language: this.targetLanguage }),
+      body: JSON.stringify({ target_language: this.targetLanguage, instructions: this.instructions }),
     });
     if (!res.ok) {
       let detail = "";
@@ -56,50 +184,39 @@ export class TranslationEngine {
     const data = await res.json();
     const value = data.value || data.client_secret?.value;
     if (!value) throw new Error("SESSION_TOKEN:0:No ephemeral client secret returned by backend");
-    this.log("info", "Received ephemeral client secret", { expires_at: data.expires_at });
+    this.log("info", "Received ephemeral client secret", {
+      expires_at: data.expires_at,
+      instructions_applied: data.instructions_applied,
+    });
+    this.h.onMetrics?.({ instructionsApplied: !!data.instructions_applied });
     return value;
   }
 
-  async start(deviceId, targetLanguage) {
+  async start({ deviceId, source = "mic", targetLanguage = "en", instructions = "" } = {}) {
     if (this.active) return;
     this.active = true;
     this.deviceId = deviceId;
-    this.targetLanguage = targetLanguage || "en";
+    this.captureSource = source;
+    this.targetLanguage = targetLanguage;
+    this.instructions = instructions;
     this.reconnectAttempts = 0;
+    this._latencies = [];
     try {
       await this._connect();
     } catch (err) {
       this.active = false;
-      this._teardownPc();
+      this._teardown();
       throw err;
     }
   }
 
   async _connect() {
-    let stream;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          deviceId: this.deviceId ? { exact: this.deviceId } : undefined,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-        video: false,
-      });
-    } catch (e) {
-      this.setStatus({ mic: "denied" });
-      throw new Error("MIC_PERMISSION:" + e.name + ":" + e.message);
-    }
-
-    if (!stream.getAudioTracks().length) {
-      this.setStatus({ mic: "denied" });
-      stream.getTracks().forEach((t) => t.stop());
-      throw new Error("NO_AUDIO_INPUT::No audio track available from the selected device");
-    }
+    await this.stopTest();
+    const stream = await this._capture(this.deviceId, this.captureSource);
     this.localStream = stream;
     this.setStatus({ mic: "active" });
-    this.log("info", "Microphone stream acquired", { deviceId: this.deviceId });
+    this.log("info", "Input stream acquired", { deviceId: this.deviceId, source: this.captureSource });
+    this._startMeter(stream);
 
     const ephemeral = await this._getEphemeral();
 
@@ -108,10 +225,12 @@ export class TranslationEngine {
 
     pc.oniceconnectionstatechange = () => {
       this.log("debug", "ICE connection state: " + pc.iceConnectionState);
+      this.h.onMetrics?.({ iceState: pc.iceConnectionState });
     };
     pc.onconnectionstatechange = () => {
       const st = pc.connectionState;
       this.log("info", "PeerConnection state: " + st);
+      this.h.onMetrics?.({ pcState: st });
       if (st === "connected") {
         this.setStatus({ network: "optimal", openai: "connected" });
         this.reconnectAttempts = 0;
@@ -124,6 +243,7 @@ export class TranslationEngine {
     pc.ontrack = (ev) => {
       this.log("info", "Remote translated audio track received");
       if (this.audioEl) this.audioEl.srcObject = ev.streams[0];
+      this.setStatus({ outputAudio: this.audioEl && this.audioEl.muted ? "muted" : "active" });
     };
 
     pc.addTrack(stream.getAudioTracks()[0], stream);
@@ -154,6 +274,11 @@ export class TranslationEngine {
     this.setStatus({ openai: "connected" });
   }
 
+  _resetSegment() {
+    this._segActive = false;
+    this._segMeasured = false;
+  }
+
   _onEvent(raw) {
     let ev;
     try {
@@ -169,6 +294,11 @@ export class TranslationEngine {
         this.log("info", "Realtime session " + ev.type.split(".")[1]);
         break;
       case "session.input_transcript.delta":
+        if (!this._segActive) {
+          this._segStart = performance.now();
+          this._segActive = true;
+          this._segMeasured = false;
+        }
         this.setStatus({ translation: "interpreting" });
         this.h.onTranscript?.({ side: "source", delta: ev.delta });
         break;
@@ -176,11 +306,20 @@ export class TranslationEngine {
         this.h.onTranscript?.({ side: "source", segmentBreak: true });
         break;
       case "session.output_transcript.delta":
+        if (this._segActive && !this._segMeasured) {
+          const lat = performance.now() - this._segStart;
+          this._segMeasured = true;
+          this._latencies.push(lat);
+          if (this._latencies.length > 50) this._latencies.shift();
+          const avg = this._latencies.reduce((a, b) => a + b, 0) / this._latencies.length;
+          this.h.onMetrics?.({ latencyMs: Math.round(lat), avgLatencyMs: Math.round(avg) });
+        }
         this.setStatus({ translation: "interpreting" });
         this.h.onTranscript?.({ side: "target", delta: ev.delta });
         break;
       case "session.output_transcript.completed":
         this.h.onTranscript?.({ side: "target", segmentBreak: true });
+        this._resetSegment();
         break;
       case "error":
         this.log("error", "Realtime API error", ev.error || ev);
@@ -195,16 +334,18 @@ export class TranslationEngine {
     if (!this.active || this._reconnecting) return;
     if (this.reconnectAttempts >= MAX_RECONNECTS) {
       this.setStatus({ openai: "error", network: "offline" });
-      this.h.onError?.("Connection lost. Automatic reconnection attempts exhausted. Press STOP then START to retry.");
+      this.h.onError?.("Connection lost. Automatic reconnection attempts exhausted. Press RESTART to retry.");
       return;
     }
     this._reconnecting = true;
     this.reconnectAttempts += 1;
     const n = this.reconnectAttempts;
+    this.setStatus({ openai: "connecting", reconnectCount: n });
+    this.h.onMetrics?.({ reconnectCount: n });
     this.log("warn", `Connection dropped — reconnect attempt ${n}/${MAX_RECONNECTS}`);
-    this.h.onError?.(`Connection interrupted — reconnecting (${n}/${MAX_RECONNECTS})…`);
+    this.h.onError?.(`RECONNECTING… (${n}/${MAX_RECONNECTS})`);
     this._teardownPc();
-    await new Promise((r) => setTimeout(r, 1200 * n));
+    await new Promise((r) => setTimeout(r, Math.min(1200 * n, 5000)));
     if (!this.active) {
       this._reconnecting = false;
       return;
@@ -212,7 +353,7 @@ export class TranslationEngine {
     try {
       await this._connect();
       this.h.onError?.(null);
-      this.log("info", "Reconnection successful");
+      this.log("info", "Reconnection successful — LIVE");
     } catch (e) {
       this.log("error", "Reconnect failed: " + e.message);
       this._reconnecting = false;
@@ -241,19 +382,36 @@ export class TranslationEngine {
     }
   }
 
-  setMuted(muted) {
-    if (this.audioEl) this.audioEl.muted = muted;
+  _teardown() {
+    this._stopMeter();
+    this._teardownPc();
+  }
+
+  setTranslationMuted(muted) {
+    if (this.audioEl) {
+      this.audioEl.muted = muted;
+      this.setStatus({ outputAudio: muted ? "muted" : this.pc ? "active" : "idle" });
+    }
+  }
+
+  setInputMuted(muted) {
+    if (this.localStream) {
+      this.localStream.getAudioTracks().forEach((t) => (t.enabled = !muted));
+    }
+    this.setStatus({ mic: muted ? "muted" : this.active ? "active" : "idle" });
   }
 
   stop() {
     this.active = false;
     this._reconnecting = false;
-    this._teardownPc();
+    this._resetSegment();
+    this._teardown();
     if (this.audioEl) this.audioEl.srcObject = null;
     this.setStatus({
       mic: "idle",
       openai: "standby",
       translation: "standby",
+      outputAudio: "idle",
       network: navigator.onLine ? "optimal" : "offline",
     });
     this.log("info", "Session stopped cleanly");

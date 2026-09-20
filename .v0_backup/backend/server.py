@@ -35,7 +35,6 @@ logger = logging.getLogger("translatebox")
 
 class SessionRequest(BaseModel):
     target_language: str = "en"
-    instructions: str | None = None
 
 
 @api_router.get("/")
@@ -88,41 +87,18 @@ async def create_realtime_session(req: SessionRequest):
 
     # Bind the ephemeral secret to a stable, non-identifying operator hash.
     safety_id = hashlib.sha256(b"translatebox-live-operator").hexdigest()
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-        "OpenAI-Safety-Identifier": safety_id,
-    }
-
-    instructions = (req.instructions or "").strip()
-
-    async def _mint(config):
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            return await client.post(OPENAI_CLIENT_SECRETS_URL, headers=headers, json=config)
 
     try:
-        instructions_applied = False
-        if instructions:
-            # gpt-realtime-translate may not accept custom instructions. Attempt
-            # to attach them, and gracefully fall back to the proven base config
-            # if OpenAI rejects the field, so the working flow is never broken.
-            with_instr = {
-                "session": {
-                    **session_config["session"],
-                    "instructions": instructions,
-                }
-            }
-            resp = await _mint(with_instr)
-            if resp.status_code < 400:
-                instructions_applied = True
-            else:
-                logger.warning(
-                    "Instructions not accepted by model (%s); retrying without them.",
-                    resp.status_code,
-                )
-                resp = await _mint(session_config)
-        else:
-            resp = await _mint(session_config)
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            resp = await client.post(
+                OPENAI_CLIENT_SECRETS_URL,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                    "OpenAI-Safety-Identifier": safety_id,
+                },
+                json=session_config,
+            )
     except httpx.RequestError as exc:
         logger.error("Network error reaching OpenAI: %s", exc)
         raise HTTPException(status_code=502, detail=f"Failed to reach OpenAI: {exc}")
@@ -134,13 +110,8 @@ async def create_realtime_session(req: SessionRequest):
             detail=f"OpenAI session creation failed: {resp.text}",
         )
 
-    logger.info(
-        "Minted ephemeral translation session (model=%s, target=%s, instructions_applied=%s)",
-        REALTIME_MODEL, target_language, instructions_applied,
-    )
-    payload = resp.json()
-    payload["instructions_applied"] = instructions_applied
-    return JSONResponse(content=payload)
+    logger.info("Minted ephemeral translation session (model=%s)", REALTIME_MODEL)
+    return JSONResponse(content=resp.json())
 
 
 app.include_router(api_router)
