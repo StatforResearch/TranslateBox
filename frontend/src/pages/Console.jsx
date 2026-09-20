@@ -4,6 +4,7 @@ import { useTranslationSession } from "../context/TranslationContext";
 import { Header } from "../components/Header";
 import { StatusIndicator } from "../components/StatusIndicator";
 import { TranscriptPanel } from "../components/TranscriptPanel";
+import { SOURCE_LANGUAGES, TARGET_LANGUAGES, getSource, getTarget, sourceLabel } from "../lib/languages";
 
 const fmt = (s) => {
   const h = String(Math.floor(s / 3600)).padStart(2, "0");
@@ -15,10 +16,17 @@ const fmt = (s) => {
 export default function Console() {
   const {
     status, sourceText, targetText, error, active, muted, duration,
-    devices, selectedDevice, setSelectedDevice, start, stop, reset, toggleMute, clearError,
+    devices, selectedDevice, setSelectedDevice,
+    sourceLang, setSourceLang, targetLang, setTargetLang,
+    start, stop, reset, toggleMute, clearError,
   } = useTranslationSession();
 
   const micState = active ? (muted ? "muted" : status.mic) : status.mic;
+  const src = getSource(sourceLang);
+  const tgt = getTarget(targetLang);
+  const selectClass =
+    "mt-1.5 w-full h-11 rounded-lg bg-slate-100 dark:bg-[#0F1623] border border-slate-300 dark:border-slate-700 px-3 text-sm font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60";
+  const labelClass = "text-xs font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 font-mono";
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-[#0A0D14] text-slate-900 dark:text-slate-100 font-sans">
@@ -26,17 +34,47 @@ export default function Console() {
 
       <main className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-5 md:space-y-6 flex flex-col">
         {/* Language + device row */}
-        <section className="grid grid-cols-1 md:grid-cols-[1fr_1fr_2fr] gap-4">
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="rounded-xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 px-5 py-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 font-mono">Source</p>
-            <p className="text-xl md:text-2xl font-bold mt-1 flex items-center gap-2">🇫🇷 French</p>
+            <label htmlFor="source-lang" className={labelClass}>Source Language</label>
+            <select
+              id="source-lang"
+              data-testid="source-language-select"
+              value={sourceLang}
+              disabled={active}
+              onChange={(e) => setSourceLang(e.target.value)}
+              className={selectClass}
+            >
+              {SOURCE_LANGUAGES.map((l) => (
+                <option key={l.code} value={l.code}>
+                  {l.flag ? l.flag + " " : ""}{l.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1.5 text-[10px] text-slate-400 dark:text-slate-600 font-mono">Auto-detected by the model across 70+ languages.</p>
           </div>
+
           <div className="rounded-xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 px-5 py-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 font-mono">Target</p>
-            <p className="text-xl md:text-2xl font-bold mt-1 flex items-center gap-2">🇬🇧 English</p>
+            <label htmlFor="target-lang" className={labelClass}>Target Language</label>
+            <select
+              id="target-lang"
+              data-testid="target-language-select"
+              value={targetLang}
+              disabled={active}
+              onChange={(e) => setTargetLang(e.target.value)}
+              className={selectClass}
+            >
+              {TARGET_LANGUAGES.map((l) => (
+                <option key={l.code} value={l.code}>
+                  {l.flag} {l.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1.5 text-[10px] text-slate-400 dark:text-slate-600 font-mono">13 supported output languages.</p>
           </div>
+
           <div className="rounded-xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 px-5 py-4">
-            <label htmlFor="audio-device" className="text-xs font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 font-mono">
+            <label htmlFor="audio-device" className={labelClass}>
               Audio Input Device
             </label>
             <select
@@ -45,7 +83,7 @@ export default function Console() {
               value={selectedDevice}
               disabled={active}
               onChange={(e) => setSelectedDevice(e.target.value)}
-              className="mt-1.5 w-full h-11 rounded-lg bg-slate-100 dark:bg-[#0F1623] border border-slate-300 dark:border-slate-700 px-3 text-sm font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60"
+              className={selectClass}
             >
               {devices.length === 0 && <option value="">Default microphone</option>}
               {devices.map((d, i) => (
@@ -54,6 +92,7 @@ export default function Console() {
                 </option>
               ))}
             </select>
+            <p className="mt-1.5 text-[10px] text-slate-400 dark:text-slate-600 font-mono">Microphone or connected USB audio interface.</p>
           </div>
         </section>
 
@@ -126,15 +165,15 @@ export default function Console() {
           </button>
 
           <div className="hidden md:flex items-center gap-2 ml-auto text-slate-400 dark:text-slate-500 text-xs font-mono uppercase tracking-widest">
-            <Languages className="h-4 w-4" /> FR → EN
+            <Languages className="h-4 w-4" /> {src.code === "auto" ? "AUTO" : src.code.toUpperCase()} → {tgt.code.toUpperCase()}
           </div>
         </section>
 
         {/* Transcripts */}
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
           <TranscriptPanel
-            label="Original — French"
-            badge="FR"
+            label={`Original — ${sourceLabel(sourceLang)}`}
+            badge={src.code === "auto" ? "SRC" : src.code.toUpperCase().slice(0, 3)}
             accent="cyan"
             text={sourceText}
             active={active}
@@ -142,8 +181,8 @@ export default function Console() {
             textTestId="original-transcript-text"
           />
           <TranscriptPanel
-            label="Translation — English"
-            badge="EN"
+            label={`Translation — ${tgt.name}`}
+            badge={tgt.code.toUpperCase()}
             accent="emerald"
             text={targetText}
             active={active}

@@ -1,4 +1,3 @@
-const OUTPUT_LANGUAGE = "en";
 const OPENAI_CALLS_URL = "https://api.openai.com/v1/realtime/translations/calls";
 const MAX_RECONNECTS = 3;
 
@@ -15,6 +14,7 @@ export class TranslationEngine {
     this.audioEl = null;
     this.active = false;
     this.deviceId = null;
+    this.targetLanguage = "en";
     this.reconnectAttempts = 0;
     this._reconnecting = false;
   }
@@ -42,7 +42,7 @@ export class TranslationEngine {
     const res = await fetch(`${this.apiBase}/realtime-session`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ target_language: OUTPUT_LANGUAGE }),
+      body: JSON.stringify({ target_language: this.targetLanguage }),
     });
     if (!res.ok) {
       let detail = "";
@@ -60,10 +60,11 @@ export class TranslationEngine {
     return value;
   }
 
-  async start(deviceId) {
+  async start(deviceId, targetLanguage) {
     if (this.active) return;
     this.active = true;
     this.deviceId = deviceId;
+    this.targetLanguage = targetLanguage || "en";
     this.reconnectAttempts = 0;
     try {
       await this._connect();

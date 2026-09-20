@@ -39,6 +39,8 @@ export function TranslationProvider({ children }) {
   const [duration, setDuration] = useState(0);
   const [devices, setDevices] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState("");
+  const [sourceLang, setSourceLang] = useState("auto");
+  const [targetLang, setTargetLang] = useState("en");
 
   const engineRef = useRef(null);
   const audioRef = useRef(null);
@@ -107,7 +109,7 @@ export function TranslationProvider({ children }) {
     setSourceText("");
     setTargetText("");
     try {
-      await engineRef.current.start(selectedDevice);
+      await engineRef.current.start(selectedDevice, targetLang);
       setActive(true);
       startTimer();
       loadDevices(); // refresh labels now that permission is granted
@@ -115,7 +117,7 @@ export function TranslationProvider({ children }) {
       setError(mapError(e));
       setActive(false);
     }
-  }, [selectedDevice, loadDevices]);
+  }, [selectedDevice, targetLang, loadDevices]);
 
   const stop = useCallback(() => {
     engineRef.current.stop();
@@ -157,6 +159,10 @@ export function TranslationProvider({ children }) {
     devices,
     selectedDevice,
     setSelectedDevice,
+    sourceLang,
+    setSourceLang,
+    targetLang,
+    setTargetLang,
     start,
     stop,
     reset,

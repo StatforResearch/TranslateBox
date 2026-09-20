@@ -18,6 +18,11 @@ OPENAI_CLIENT_SECRETS_URL = "https://api.openai.com/v1/realtime/translations/cli
 REALTIME_MODEL = os.environ.get("OPENAI_REALTIME_MODEL", "gpt-realtime-translate")
 INPUT_TRANSCRIPTION_MODEL = "gpt-realtime-whisper"
 
+# The 13 output languages supported by gpt-realtime-translate.
+SUPPORTED_OUTPUT_LANGUAGES = {
+    "en", "es", "pt", "fr", "ja", "ru", "zh", "de", "ko", "hi", "id", "vi", "it",
+}
+
 app = FastAPI(title="TranslateBox Live API")
 api_router = APIRouter(prefix="/api")
 
@@ -60,12 +65,22 @@ async def create_realtime_session(req: SessionRequest):
             detail="OPENAI_API_KEY is not configured on the server. Add it to backend/.env and restart the backend.",
         )
 
+    target_language = (req.target_language or "en").lower()
+    if target_language not in SUPPORTED_OUTPUT_LANGUAGES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported target language '{target_language}'. Supported output languages: {sorted(SUPPORTED_OUTPUT_LANGUAGES)}",
+        )
+
     session_config = {
         "session": {
             "model": REALTIME_MODEL,
             "audio": {
-                "input": {"transcription": {"model": INPUT_TRANSCRIPTION_MODEL}},
-                "output": {"language": (req.target_language or "en")},
+                "input": {
+                    "transcription": {"model": INPUT_TRANSCRIPTION_MODEL},
+                    "noise_reduction": {"type": "near_field"},
+                },
+                "output": {"language": target_language},
             },
         }
     }
