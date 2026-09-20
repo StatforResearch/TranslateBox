@@ -1,0 +1,21 @@
+{
+  "summary": "Frontend regression pass after Console/TranslationContext refactor (usePersistentState + useBroadcast hooks + AudioControlCard/TransportControls split + SettingsDialog Blob-URL PDF). Behavior is IDENTICAL to iter10 — zero console errors, zero React key warnings, zero pageerrors across Console (/), /debug, /loadtest, and event creation flow. All required data-testids render: source-language-select, target-language-select, audio-device-select, audio-output-select, ambient-mode-toggle, test-input-button, start-translation-button, settings-button, create-event-button, event-listen-url, event-qr, listeners-count (shows '0 / 30'), loadtest-event-id, loadtest-run, debug-tab-logs, debug-tab-events, original-transcript-panel, translated-transcript-panel. Language comboboxes open, are searchable ('Fren' -> French, 'Span' -> Spanish), selection propagates to transcript panel headers ('SOURCE — FRENCH', 'TRANSLATION — SPANISH') and PERSISTS across a full reload (usePersistentState -> tbl-source / tbl-target). Ambient toggle flips and persists across reload. Output device select shows 4 options and setter fires without error. Settings dialog opens; mode switching works; profile fields editable; export-txt-button triggers a real file download (translatebox-Regression-Event-<ts>.txt); export-pdf-button opens a NEW window whose URL starts with 'blob:' (post-refactor Blob-URL approach in SettingsDialog.jsx line ~55 — no document.write, no throws). Broadcast panel Create Event returns a shareable /e/{id} link + QR + 0/30 listener count. LoadTest connecting 5 simulated listeners against a live event id increments 'Connected (client)' to 5 AND server 'Total Listeners' to 5 while 'OpenAI Sessions' stays 0 (correct — no operator is broadcasting from the harness because there is no physical mic). Debug page state grid renders and both tabs (Logs / Realtime Events) switch cleanly with no React 'unique key' warnings.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Refactor is clean: TranslationContext.jsx now delegates preference persistence to usePersistentState and broadcast concerns to useBroadcast, and spreads useBroadcast's return into the context value — public shape (createEvent/startEvent/stopEvent/restartBroadcast/eventInfo/listeners/broadcasting/captionsToListeners) is preserved.",
+    "AudioControlCard and TransportControls are pure presentational consumers of useTranslationSession — no local state duplication, so previous flows work unchanged.",
+    "SettingsDialog exportPdf now uses URL.createObjectURL(new Blob([html], text/html)) + window.open + w.print() with URL.revokeObjectURL scheduled at 60s — safe against document.write CSP/deprecation issues.",
+    "useBroadcast has correct dependency arrays; captions effect gates on (broadcasting && captionsToListeners && broadcasterRef.current) so no stray sendCaption calls on unmounted refs.",
+    "usePersistentState uses JSON.parse/stringify with try/catch — protects against corrupted localStorage; note it reads on mount only (no cross-tab sync), which matches prior behavior and is acceptable for operator preferences."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not-tested (per request)", "frontend": "100% (all 8 regression scenarios pass, 0 console/page errors, 0 key warnings)"},
+  "test_credentials": "N/A (no auth)",
+  "seed_data_creation": "Two ephemeral in-memory events created during test (HiwFeTz7 open for loadtest, one earlier VrOVrRh1). Auto-wiped on backend restart.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Console/TranslationContext refactor is behavior-preserving. Frontend regression is green. Backend was NOT re-tested this iteration (already 31/31 in iter10 and untouched by the frontend refactor — server.py helper extraction was verified separately per the request). If backend needs re-verification, run /app/backend/tests/test_v1_broadcast.py + test_translatebox.py. LoadTest correctly reports total_listeners live from /api/stats and openai_sessions remains 0 without an operator (single-session guarantee intact)."
+}

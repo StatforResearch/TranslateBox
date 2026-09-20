@@ -54,3 +54,15 @@ Production-quality MVP: real-time French speech → English speech interpretatio
 - P0: End-to-end live verification once `OPENAI_API_KEY` is added (French→English audio + both transcripts).
 - P1: Optional transcript export/save (privacy off by default), input/output level meters, latency readout in debug.
 - P2: Sanitize upstream OpenAI error text for production; rate-limit session minting; additional language pairs.
+
+
+## Code-quality cleanup (2026-06)
+Applied code-review fixes without changing behavior:
+- Security: replaced `document.write` (PDF export) with a Blob-URL + `print()` approach in SettingsDialog.jsx.
+- Logging: added console logging to previously-empty catch blocks (broadcast.js, LoadTest.jsx, TranslationContext); cleanup catches documented with intent comments (translationEngine.js).
+- React keys: Debug.jsx log/event lists now use stable `${ts}-${i}` keys.
+- Refactor (behavior-preserving):
+  - Backend `server.py`: `create_realtime_session` split into `_enforce_session_abuse_controls`/`_resolve_target_language`/`_build_session_config`/`_openai_headers`/`_mint_session`; `ws_broadcast` split into `_run_operator`/`_run_listener`/`_fanout_bytes`/`_fanout_text`.
+  - Frontend: new `hooks/usePersistentState.js` (localStorage-backed prefs) and `hooks/useBroadcast.js` (event/broadcast state); `TranslationContext` slimmed and spreads `useBroadcast`; `Console.jsx` split into `components/console/AudioControlCard.jsx` + `TransportControls.jsx`.
+- Deliberately NOT changed (with rationale): localStorage kept for preferences (no secrets stored → sessionStorage would only hurt UX); WebRTC/WebSocket init effect deps left eslint-disabled (adding deps risks reconnect loops); no further big-bang rewrites on the working realtime path.
+- Verified: backend 31/31 pytest (incl. WS pin gating, listener limit, 4404, operator→listener fan-out); frontend regression iteration_11 = 100% (0 console errors, 0 React key warnings).
