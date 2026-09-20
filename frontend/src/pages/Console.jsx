@@ -1,10 +1,11 @@
 import React from "react";
-import { Play, Square, Mic, VolumeX, Volume2, RotateCcw, Radio, Cpu, Wifi, Languages, AlertTriangle, X } from "lucide-react";
+import { Play, Square, Mic, VolumeX, Volume2, RotateCcw, Radio, Cpu, Wifi, Languages, AlertTriangle, X, ArrowLeftRight } from "lucide-react";
 import { useTranslationSession } from "../context/TranslationContext";
 import { Header } from "../components/Header";
 import { StatusIndicator } from "../components/StatusIndicator";
 import { TranscriptPanel } from "../components/TranscriptPanel";
-import { SOURCE_LANGUAGES, TARGET_LANGUAGES, getSource, getTarget, sourceLabel } from "../lib/languages";
+import { LanguageCombobox } from "../components/LanguageCombobox";
+import { SOURCE_LANGUAGES, TARGET_LANGUAGES, getSource, getTarget, sourceLabel, sourceToTargetCode, targetToSourceCode } from "../lib/languages";
 
 const fmt = (s) => {
   const h = String(Math.floor(s / 3600)).padStart(2, "0");
@@ -28,52 +29,71 @@ export default function Console() {
     "mt-1.5 w-full h-11 rounded-lg bg-slate-100 dark:bg-[#0F1623] border border-slate-300 dark:border-slate-700 px-3 text-sm font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60";
   const labelClass = "text-xs font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 font-mono";
 
+  // Swap source <-> target. Target must be one of the 13 output languages, so we
+  // map the current source (if it's a supported output language) into the target.
+  const swapLanguages = () => {
+    if (active) return;
+    const newTargetCode = sourceToTargetCode(sourceLang) || targetLang;
+    const newSourceCode = targetToSourceCode(targetLang);
+    setTargetLang(newTargetCode);
+    setSourceLang(newSourceCode);
+  };
+  const swapDisabled = active || sourceLang === "auto";
+
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-[#0A0D14] text-slate-900 dark:text-slate-100 font-sans">
       <Header />
 
       <main className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-5 md:space-y-6 flex flex-col">
         {/* Language + device row */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="rounded-xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 px-5 py-4">
-            <label htmlFor="source-lang" className={labelClass}>Source Language</label>
-            <select
-              id="source-lang"
-              data-testid="source-language-select"
-              value={sourceLang}
-              disabled={active}
-              onChange={(e) => setSourceLang(e.target.value)}
-              className={selectClass}
-            >
-              {SOURCE_LANGUAGES.map((l) => (
-                <option key={l.code} value={l.code}>
-                  {l.flag ? l.flag + " " : ""}{l.name}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1.5 text-[10px] text-slate-400 dark:text-slate-600 font-mono">Auto-detected by the model across 70+ languages.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-3 items-end">
+              <div>
+                <label className={labelClass}>Source Language</label>
+                <LanguageCombobox
+                  options={SOURCE_LANGUAGES}
+                  value={sourceLang}
+                  onChange={setSourceLang}
+                  disabled={active}
+                  testId="source-language-select"
+                />
+              </div>
+              <button
+                type="button"
+                data-testid="swap-languages-button"
+                onClick={swapLanguages}
+                disabled={swapDisabled}
+                title={swapDisabled ? "Set a specific source language to swap" : "Swap source and target"}
+                className="hidden sm:flex mb-0.5 h-11 w-11 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-emerald-500/10 hover:text-emerald-500 hover:border-emerald-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-600 disabled:hover:border-slate-300 dark:disabled:hover:border-slate-700"
+              >
+                <ArrowLeftRight className="h-5 w-5" />
+              </button>
+              <div>
+                <label className={labelClass}>Target Language</label>
+                <LanguageCombobox
+                  options={TARGET_LANGUAGES}
+                  value={targetLang}
+                  onChange={setTargetLang}
+                  disabled={active}
+                  testId="target-language-select"
+                />
+              </div>
+            </div>
+            <div className="mt-2 flex items-center justify-between">
+              <p className="text-[10px] text-slate-400 dark:text-slate-600 font-mono">Source auto-detected (70+). Target: 13 output languages.</p>
+              <button
+                type="button"
+                onClick={swapLanguages}
+                disabled={swapDisabled}
+                className="sm:hidden inline-flex items-center gap-1 text-[11px] font-mono uppercase tracking-wider text-emerald-600 dark:text-emerald-400 disabled:opacity-40"
+              >
+                <ArrowLeftRight className="h-3.5 w-3.5" /> Swap
+              </button>
+            </div>
           </div>
 
-          <div className="rounded-xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 px-5 py-4">
-            <label htmlFor="target-lang" className={labelClass}>Target Language</label>
-            <select
-              id="target-lang"
-              data-testid="target-language-select"
-              value={targetLang}
-              disabled={active}
-              onChange={(e) => setTargetLang(e.target.value)}
-              className={selectClass}
-            >
-              {TARGET_LANGUAGES.map((l) => (
-                <option key={l.code} value={l.code}>
-                  {l.flag} {l.name}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1.5 text-[10px] text-slate-400 dark:text-slate-600 font-mono">13 supported output languages.</p>
-          </div>
-
-          <div className="rounded-xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 px-5 py-4">
+          <div className="rounded-xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 px-5 py-4 flex flex-col justify-center">
             <label htmlFor="audio-device" className={labelClass}>
               Audio Input Device
             </label>
