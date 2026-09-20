@@ -56,13 +56,13 @@ export default function Console() {
       <main className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-8 space-y-5">
         {/* Language + audio control card */}
         <section className="rounded-2xl bg-white/80 dark:bg-[#121824]/70 backdrop-blur-xl border border-slate-200/70 dark:border-white/10 shadow-lg shadow-black/5 dark:shadow-black/20 p-4 md:p-5 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1.4fr] gap-3 md:gap-4 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1.4fr] gap-3 md:gap-4 items-start">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 font-mono">Source</p>
               <LanguageCombobox options={SOURCE_LANGUAGES} value={sourceLang} onChange={setSourceLang} disabled={active} testId="source-language-select" />
               <p className="mt-1 text-[10px] font-mono text-slate-400">Auto = detected among 70+ languages</p>
             </div>
-            <div className="hidden md:flex items-center justify-center pb-2.5 text-slate-400"><ArrowRight className="h-5 w-5" /></div>
+            <div className="hidden md:flex items-center justify-center pt-[34px] text-slate-400"><ArrowRight className="h-5 w-5" /></div>
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 font-mono">Translate to</p>
               <LanguageCombobox options={TARGET_LANGUAGES} value={targetLang} onChange={setTargetLang} disabled={active} testId="target-language-select" />
