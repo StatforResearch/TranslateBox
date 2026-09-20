@@ -40,9 +40,10 @@ Production-quality MVP: real-time French speech → English speech interpretatio
 - README.md added. Testing iteration_5: 12/12 backend, 100% frontend.
 
 ## V0.5 verification status
-- Verified via testing agent (12/12 backend, 100% frontend). V0 FR→EN wiring preserved (regression confirmed).
-- NOT verifiable due to OpenAI 429 insufficient_quota (no account credits): live audio translation, real latency numbers, and the 30-minute stability run. These will run once the account is funded.
-- Security confirmed: no `sk-` key in any response body, DOM, or logs; browser uses only `ek_` ephemeral secrets.
+- LIVE END-TO-END CONFIRMED (2026-06, after credits funded): WebRTC session reaches `connected` in ~1.5-2.1s, `session.created` received, translated audio track received + playback started; EN and FR targets both connect; STOP→START works without reload; mute/latency/reconnect wired. Backend 22/22 pytest, security headers + no `sk-` leak + frontend info-disclosure fix all verified (iteration_8).
+- Source is now a selectable combobox (Auto-detect default among 70+); Target selectable among the 13 output languages. Minimalist UI; advanced config (modes, event profile, save, export) in a Settings dialog.
+- Remaining human step: on a real device, speak into the mic to confirm spoken transcript + heard audio (harness cannot produce speech, so transcripts are empty in automated tests only).
+- Security confirmed: permanent key server-side only; browser uses only `ek_` ephemeral secrets.
 
 ## Backlog
 - P0: End-to-end live verification once `OPENAI_API_KEY` is added (French→English audio + both transcripts).

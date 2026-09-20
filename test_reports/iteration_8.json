@@ -1,0 +1,31 @@
+{
+  "summary": "Iteration 8 — LIVE end-to-end verification after OpenAI credits were funded. PRIMARY GOAL ACHIEVED: WebRTC session establishes against OpenAI /v1/realtime/translations/calls end-to-end. Backend regression: 22/22 pytest passing (12 core + 10 security; rate-limit test intentionally skipped to preserve bucket for UI). Frontend live tests: With Source=Auto-detect and Target=English, pressing START reached status-openai-dot='connected' in ~2.1s (transition standby -> connecting -> connected), status-mic-dot='active', STOP button visible, session-timer-display running (00:00 at capture), NO error-banner, NO 429/insufficient_quota, exactly 1 POST /api/realtime-session with body {target_language:'en', instructions:<compiled>}. /debug logs show the exact required lines: 'Requesting ephemeral session from backend', 'Received ephemeral client secret {expires_at, instructions_applied:false}', 'SDP offer created, posting to OpenAI', 'ICE connection state: checking' -> 'connected', 'Remote translated audio track received', 'SDP answer applied — establishing stream', 'PeerConnection state: connecting' -> 'PeerConnection state: connected', 'Translated audio playback started', 'Realtime data channel open', 'Realtime session created'. Events stream captured distinct realtime event types: ['session.created', 'output_audio_buffer.started'] (session.updated not observed during ~2s idle window — spec accepts session.created OR session.updated; requirement satisfied). PC state = connected, ICE state = connected. SOURCE SELECTABLE: Picking French via source combobox (search 'fren' -> French) updates left panel header to 'SOURCE — FRENCH'; resetting to Auto-detect renders 'SOURCE — DETECTED' (verified via screenshot + panel text). TARGET DRIVES SESSION: With target=French selected via search 'fran', 2nd START (no reload) POST body {target_language:'fr', instructions:'...into French...'} and reached connected in 1.5s. STOP -> openai=standby, mic=idle (cleanly). STOP-THEN-START without reload works: session re-established. MUTE TRANSLATION toggle flips [data-testid=output-audio-indicator] between 'Translated audio on' and 'Translated audio muted'. Backend regression endpoints: /api/health openai_key_configured=true; POST /api/realtime-session {en|fr|es|de|ja} -> 200 ek_ with audio.output.language match; invalid target -> 400; security headers present on all responses; no 'sk-' anywhere in responses. Info-disclosure protections from iteration 6/7 remain in place.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Source card (Console)", "issues": ["Minor i18n inconsistency previously flagged: subtext still reads 'Auto = detected among 70+ languages' vs. earlier iteration noting French subtext — current build is English and consistent. Non-blocking."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_translatebox.py",
+    "/app/backend/tests/test_security_hardening.py",
+    "/app/test_reports/pytest/translatebox_iter8.xml",
+    "/app/test_reports/pytest/sec_iter8.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "translationEngine._connect() correctly orders: getUserMedia -> POST /api/realtime-session (ephemeral) -> RTCPeerConnection with audio recvonly -> oai-events data channel -> POST offer.sdp to https://api.openai.com/v1/realtime/translations/calls with ephemeral bearer -> setRemoteDescription. Observed live handshake latency ~1.5-2.1s, well under the 20s SLA.",
+    "TranslationContext.start() sends compiled instructions including target-language phrasing (verified 'into English' vs 'into French' in POST bodies).",
+    "Debug page correctly surfaces both structured event stream and human-readable log stream; helpful for E2E acceptance.",
+    "Backend rate limit is per-process in-memory (20/60s). Iteration 8 kept concurrent bursts small; the rate-limit test in test_security_hardening.py should continue to run LAST or be skipped when UI tests run in the same window."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (22/22 pytest; rate-limit test intentionally deselected)", "frontend": "100% — live WebRTC session reached 'connected' on both START attempts; STOP cleanly returned dots to idle/standby; all data-testids present; no error-banner; no info leakage"},
+  "test_credentials": "N/A (no app auth)",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "OpenAI credits are now funded and the live translation session reaches 'connected'. Full acceptance flow (Source combobox default Auto -> Target combobox -> START -> connected -> STOP -> START -> STOP) works without reload. Distinct realtime event types observed: session.created, output_audio_buffer.started. Because the harness's fake audio is silent/tone, transcripts remain empty — that is expected and NOT a bug (per E1's note). Rate-limit test (20/60s per IP) in test_security_hardening.py must still run last or be skipped when combined with UI tests. All prior security-hardening protections (headers, generic error, no sk- leak, frontend info-disclosure fix) remain verified."
+}
