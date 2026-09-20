@@ -59,12 +59,11 @@ const linesFrom = (text) =>
     .map((l) => l.trim())
     .filter(Boolean);
 
-export function compileInstructions({ modeKey, customText, direction, profile }) {
-  const dir = DIRECTIONS[direction] || DIRECTIONS["fr-en"];
+export function compileInstructions({ modeKey, customText, targetName, profile }) {
   const mode = MODES[modeKey] || MODES.GENERAL;
   const base = modeKey === "CUSTOM" ? (customText || MODES.GENERAL.instructions) : mode.instructions;
 
-  const parts = [base, `Translate from ${dir.source} into ${dir.target}.`];
+  const parts = [base, `Translate the speaker's words into ${targetName || "English"}. The source language is auto-detected.`];
 
   const p = profile || EMPTY_PROFILE;
   if (p.eventName) parts.push(`Event: ${p.eventName}.`);

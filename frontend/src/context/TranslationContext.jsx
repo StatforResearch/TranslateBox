@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
 import { TranslationEngine } from "../lib/translationEngine";
-import { DIRECTIONS, MODES, EMPTY_PROFILE, compileInstructions } from "../lib/profiles";
+import { MODES, EMPTY_PROFILE, compileInstructions } from "../lib/profiles";
+import { getTarget } from "../lib/languages";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -29,8 +30,11 @@ function mapError(err) {
       return detail || "No audio input detected. Check your microphone or USB audio interface.";
     case "SESSION_TOKEN":
       return `Could not start a translation session. ${detail || "The OpenAI API key may be missing on the server."}`;
-    case "OPENAI_CONNECT":
-      return `Failed to connect to OpenAI Realtime (${parts[1]}). ${detail?.slice(0, 220) || ""}`;
+    case "OPENAI_CONNECT": {
+      const st = parts[1];
+      if (st === "429") return "The translation service is temporarily unavailable (quota limit reached). Please try again later.";
+      return `Could not connect to the translation service (code ${st}). Please try again.`;
+    }
     default:
       return msg;
   }
@@ -67,7 +71,7 @@ export function TranslationProvider({ children }) {
   const [devices, setDevices] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState("");
   const [captureSource, setCaptureSource] = useState("mic"); // 'mic' | 'display'
-  const [direction, setDirection] = useState(() => LS.get("tbl-direction", "fr-en"));
+  const [targetLang, setTargetLang] = useState(() => LS.get("tbl-target", "en"));
   const [modeKey, setModeKey] = useState(() => LS.get("tbl-mode", "GENERAL"));
   const [customInstructions, setCustomInstructions] = useState(() => LS.get("tbl-custom", ""));
   const [profile, setProfile] = useState(() => LS.get("tbl-profile", EMPTY_PROFILE));
@@ -105,7 +109,7 @@ export function TranslationProvider({ children }) {
   }
 
   // persist config
-  useEffect(() => LS.set("tbl-direction", direction), [direction]);
+  useEffect(() => LS.set("tbl-target", targetLang), [targetLang]);
   useEffect(() => LS.set("tbl-mode", modeKey), [modeKey]);
   useEffect(() => LS.set("tbl-custom", customInstructions), [customInstructions]);
   useEffect(() => LS.set("tbl-profile", profile), [profile]);
@@ -169,13 +173,13 @@ export function TranslationProvider({ children }) {
     setDuration(0);
     setTranslatedSeconds(0);
     setTesting(false);
-    const dir = DIRECTIONS[direction];
-    const instructions = compileInstructions({ modeKey, customText: customInstructions, direction, profile });
+    const targetName = getTarget(targetLang).name;
+    const instructions = compileInstructions({ modeKey, customText: customInstructions, targetName, profile });
     try {
       await engineRef.current.start({
         deviceId: selectedDevice,
         source: captureSource,
-        targetLanguage: dir.targetCode,
+        targetLanguage: targetLang,
         instructions,
       });
       setActive(true);
@@ -185,7 +189,7 @@ export function TranslationProvider({ children }) {
       setError(mapError(e));
       setActive(false);
     }
-  }, [selectedDevice, captureSource, direction, modeKey, customInstructions, profile, loadDevices]);
+  }, [selectedDevice, captureSource, targetLang, modeKey, customInstructions, profile, loadDevices]);
 
   const stop = useCallback(() => {
     engineRef.current.stop();
@@ -257,13 +261,13 @@ export function TranslationProvider({ children }) {
     status, sourceText, targetText, logs, rawEvents, error, active,
     translationMuted, inputMuted, duration, translatedSeconds,
     devices, selectedDevice, setSelectedDevice, captureSource, setCaptureSource,
-    direction, setDirection, modeKey, setModeKey, customInstructions, setCustomInstructions,
+    targetLang, setTargetLang, modeKey, setModeKey, customInstructions, setCustomInstructions,
     profile, setProfile, saveTranscripts, setSaveTranscripts,
     level, testing, metrics,
     start, stop, restart, reset,
     toggleTranslationMute, toggleInputMute, testInput, stopTest,
     clearError: () => setError(null),
-    MODES, DIRECTIONS,
+    MODES,
   };
 
   return (

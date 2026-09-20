@@ -1,0 +1,38 @@
+{
+  "summary": "Security hardening verified. 23/23 pytest passing (11 new security tests + 12 regression). All required security headers (X-Content-Type-Options:nosniff, X-Frame-Options:DENY, Referrer-Policy:no-referrer, Strict-Transport-Security max-age) present on /api/health and /api/realtime-session. CORS allow_credentials effectively disabled (no wildcard+credentials combo). Payload size cap works: 45KB body returned controlled response (server did not 500). Rate limiting confirmed: 24 concurrent POSTs to /api/realtime-session produced a mix of 200s and 429s with generic detail 'Too many session requests...'; no 500s. Backend generic-error path is implemented in code but could not be force-triggered live because minting still returns 200 (org has no credits only affects the downstream /calls stage). Secret safety confirmed: no 'sk-' in any response body or headers on /api/health or /api/realtime-session. Core flow regression passes: health returns openai_key_configured=true + model=gpt-realtime-translate; en/fr/es/de/ja mint ek_ successfully; invalid target returns 400; instructions_applied bool present. Frontend regression: Console loads, direction-fr-en/direction-en-fr toggles work, TEST INPUT makes 0 /realtime-session POSTs, pressing START POSTs once to /api/realtime-session and after live OpenAI /calls 429 the error-banner appears and the START button is restored, /debug page loads without any 'sk-' in DOM.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "START -> OpenAI WebRTC /v1/realtime/translations/calls 429", "issue": "The error-banner renders the RAW OpenAI JSON body returned by the direct browser->OpenAI /calls request, including the phrase 'insufficient_quota' and the URL 'https://platform.openai.com/settings/organization/billing/'. Backend SEC-002 is correct (server-side generic message) but the frontend leaks the upstream body straight to the UI. Recommend translating any non-2xx response from the /calls stage into a generic user-facing message (e.g. 'The translation service could not start a session right now. Please try again shortly.') and logging the raw body only to console.", "affected_selectors": ["[data-testid=error-banner]"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_security_hardening.py",
+    "/app/backend/tests/test_translatebox.py",
+    "/app/test_reports/pytest/security_results.xml",
+    "/app/test_reports/pytest/regression_results.xml"
+  ],
+  "action_items": [
+    "FRONTEND SEC-002 GAP: In /app/frontend/src/lib/translationEngine.js (WebRTC /calls fetch), when response is non-2xx do NOT propagate response.text() (raw OpenAI JSON) to the UI error-banner. Show a generic message and console.error the details for debugging only. Currently the banner shows 'insufficient_quota' and the billing URL which was the exact info-disclosure pattern the security audit called out.",
+    "OPTIONAL: Consider clamping Content-Length check to also cover chunked/no-header uploads; currently a body without Content-Length would only be truncated at the instructions field (still safe, but 413 would not fire).",
+    "External: Add credits to the OpenAI org so the live /calls stage stops returning 429 (unrelated to hardening)."
+  ],
+  "critical_code_review_comments": [
+    "Backend SecurityHeadersMiddleware correctly injected on every response; verified via /api/health and /api/realtime-session including error responses.",
+    "_rate_limited() is per-process in-memory (defaultdict(deque)) — acceptable for a single-worker prototype but will not aggregate across multiple uvicorn workers or replicas; document this in ops notes if scaling.",
+    "CORS: allow_credentials=False AND allow_origins from env (default '*') — safe combination; verified Access-Control-Allow-Credentials is absent/false in preflight response.",
+    "Generic upstream error mapping is correct: only 429/401/402/403 are passed through, everything else collapses to 502, and the detail string is fixed.",
+    "MAX_INSTRUCTIONS_LEN truncation happens after Pydantic parse — combined with the Content-Length 413 guard this is a defensible two-layer cap.",
+    "Frontend error-banner blindly concatenates the /calls upstream response body — should be sanitized (see action_items)."
+  ],
+  "updated_files": ["/app/backend/tests/test_security_hardening.py"],
+  "success_rate": {"backend": "100% (23/23 pytest: 11 security + 12 regression)", "frontend": "Console/direction/test-input/START-recovery/debug all functional; error-banner leaks upstream JSON body (frontend fix needed)"},
+  "test_credentials": "N/A (no app auth by V0.5 design)",
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend hardening is complete and covered by /app/backend/tests/test_security_hardening.py (11 tests, ~73s runtime because of the 65s rate-limit reset). When re-running the full suite, always run test_security_hardening.py LAST or wait >60s between session-touching modules because the rate limiter is 20/60s per IP and per-process. To reproduce the frontend info-disclosure finding: open /, click start-translation-button, observe [data-testid=error-banner] — it currently contains raw OpenAI JSON with 'insufficient_quota' and billing URL. Fix location: /app/frontend/src/lib/translationEngine.js where the /calls response text is surfaced. Backend generic-error path could not be live-triggered because /realtime-session mint still returns 200 with no credits; if you want to force it, temporarily rewrite OPENAI_CLIENT_SECRETS_URL to an invalid path and re-run test_generic_error_on_upstream_failure.",
+  "rca of the issue": "The security-audit patch was correctly applied to the backend: middleware for headers, per-IP rate limit (20/60s), body-size cap (32KB) + instructions truncation (6000 chars), CORS credentials off, and generic upstream detail mapping. All are verified passing. The remaining leak is FRONTEND-side: the browser makes its own POST to https://api.openai.com/v1/realtime/translations/calls using the ephemeral ek_, and translationEngine.js currently surfaces response.text() (raw OpenAI JSON) into the UI error-banner. Mitigation: replace the surfaced text with a fixed generic string and keep raw details in console.error only."
+}

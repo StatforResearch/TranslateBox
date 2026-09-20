@@ -265,8 +265,12 @@ export class TranslationEngine {
     });
     if (!sdpRes.ok) {
       const t = await sdpRes.text();
+      // Do NOT surface the raw upstream body to the UI (info disclosure). Log
+      // full details to the console for debugging; propagate only the status.
+      console.error("[OpenAI /calls] error", sdpRes.status, t);
+      this.log("error", "OpenAI /calls error " + sdpRes.status, { status: sdpRes.status });
       this.setStatus({ openai: "error" });
-      throw new Error(`OPENAI_CONNECT:${sdpRes.status}:${t}`);
+      throw new Error(`OPENAI_CONNECT:${sdpRes.status}:`);
     }
     const answer = await sdpRes.text();
     await pc.setRemoteDescription({ type: "answer", sdp: answer });
