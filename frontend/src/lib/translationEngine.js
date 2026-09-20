@@ -170,7 +170,7 @@ export class TranslationEngine {
     if (this._meterSrc) {
       try {
         this._meterSrc.disconnect();
-      } catch {}
+      } catch { /* already disconnected */ }
       this._meterSrc = null;
     }
     this._analyser = null;
@@ -417,13 +417,13 @@ export class TranslationEngine {
     if (this.dc) {
       try {
         this.dc.close();
-      } catch {}
+      } catch { /* already closed */ }
       this.dc = null;
     }
     if (this.pc) {
       try {
         this.pc.close();
-      } catch {}
+      } catch { /* already closed */ }
       this.pc = null;
     }
     if (this.localStream) {

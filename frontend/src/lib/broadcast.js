@@ -36,7 +36,9 @@ export class OperatorBroadcaster {
           const m = JSON.parse(ev.data);
           if (m.type === "listeners") this.onCount(m.count);
           if (m.type === "status") this.onStatus(m);
-        } catch {}
+        } catch (err) {
+          console.debug("[broadcast] ignoring non-JSON control message", err);
+        }
       };
       this.ws.onerror = () => reject(new Error("Broadcast WebSocket error"));
     });
@@ -49,8 +51,8 @@ export class OperatorBroadcaster {
   }
 
   stop() {
-    try { this.recorder && this.recorder.state !== "inactive" && this.recorder.stop(); } catch {}
-    try { this.ws && this.ws.close(); } catch {}
+    try { this.recorder && this.recorder.state !== "inactive" && this.recorder.stop(); } catch (err) { console.debug("[broadcast] recorder stop cleanup", err); }
+    try { this.ws && this.ws.close(); } catch (err) { console.debug("[broadcast] ws close cleanup", err); }
     this.recorder = null;
     this.ws = null;
   }

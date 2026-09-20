@@ -93,7 +93,7 @@ export default function Debug() {
           >
             {logs.length === 0 && <p className="text-slate-600">No log entries yet. Start a session on the console.</p>}
             {logs.map((l, i) => (
-              <div key={i} className="flex gap-3">
+              <div key={`${l.ts}-${i}`} className="flex gap-3">
                 <span className="text-slate-600 shrink-0">{l.ts.split("T")[1]?.replace("Z", "")}</span>
                 <span className={`shrink-0 uppercase w-12 ${LEVEL_COLOR[l.level] || "text-slate-400"}`}>{l.level}</span>
                 <span className="text-slate-200 break-all">
@@ -111,7 +111,7 @@ export default function Debug() {
           >
             {rawEvents.length === 0 && <p className="text-slate-600">No realtime events captured yet.</p>}
             {rawEvents.map((r, i) => (
-              <div key={i} className="flex gap-3">
+              <div key={`${r.ts}-${i}`} className="flex gap-3">
                 <span className="text-slate-600 shrink-0">{r.ts.split("T")[1]?.replace("Z", "")}</span>
                 <span className="text-cyan-400 break-all">{r.ev.type}</span>
                 {r.ev.delta && <span className="text-slate-300 break-all">"{r.ev.delta}"</span>}

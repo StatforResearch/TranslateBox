@@ -15,7 +15,7 @@ export default function LoadTest() {
 
   useEffect(() => {
     const t = setInterval(() => {
-      fetch(`${API}/stats`).then((r) => r.json()).then(setStats).catch(() => {});
+      fetch(`${API}/stats`).then((r) => r.json()).then(setStats).catch((err) => console.debug("[loadtest] stats poll failed", err));
     }, 2000);
     return () => { clearInterval(t); stopAll(); };
     // eslint-disable-next-line
@@ -35,7 +35,7 @@ export default function LoadTest() {
   };
 
   const run = () => { for (let i = 0; i < target; i++) setTimeout(addOne, i * 60); };
-  const stopAll = () => { socks.current.forEach((w) => { try { w.close(); } catch {} }); socks.current = []; setConnected(0); };
+  const stopAll = () => { socks.current.forEach((w) => { try { w.close(); } catch (err) { console.debug("[loadtest] socket close cleanup", err); } }); socks.current = []; setConnected(0); };
 
   const Stat = ({ label, value }) => (
     <div className="rounded-lg bg-[#121824] border border-white/10 px-4 py-3">

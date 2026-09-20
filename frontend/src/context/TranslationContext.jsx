@@ -53,7 +53,9 @@ const LS = {
   set(key, val) {
     try {
       localStorage.setItem(key, JSON.stringify(val));
-    } catch {}
+    } catch (err) {
+      console.warn("[TranslationContext] could not persist preference", key, err);
+    }
   },
 };
 
@@ -140,8 +142,8 @@ export function TranslationProvider({ children }) {
       setSelectedDevice((cur) => cur || (list[0]?.deviceId ?? ""));
       const outs = await engineRef.current.listOutputDevices();
       setOutputDevices(outs);
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.error("[TranslationContext] device enumeration failed", err);
     }
   }, []);
 
