@@ -1,0 +1,28 @@
+# TranslateBox appliance stack — Intel N100/N150 mini PC, Linux, no GPU.
+# AI processing stays in the OpenAI cloud; this box only relays audio.
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    restart: unless-stopped
+    environment:
+      - MONGO_URL=mongodb://mongo:27017
+      - DB_NAME=translatebox
+      - CORS_ORIGINS=*
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_REALTIME_MODEL=gpt-realtime-translate
+      - MAX_LISTENERS=30
+    ports:
+      - "8001:8001"
+    depends_on:
+      - mongo
+
+volumes:
+  mongo_data:

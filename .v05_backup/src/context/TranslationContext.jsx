@@ -2,7 +2,6 @@ import React, { createContext, useContext, useEffect, useRef, useState, useCallb
 import { TranslationEngine } from "../lib/translationEngine";
 import { MODES, EMPTY_PROFILE, compileInstructions } from "../lib/profiles";
 import { getTarget } from "../lib/languages";
-import { OperatorBroadcaster, WS_BASE } from "../lib/broadcast";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -84,11 +83,6 @@ export function TranslationProvider({ children }) {
   const [level, setLevel] = useState({ level: 0, peak: 0 });
   const [testing, setTesting] = useState(false);
   const [metrics, setMetrics] = useState({ latencyMs: null, avgLatencyMs: null, instructionsApplied: false, pcState: "", iceState: "" });
-  const [eventInfo, setEventInfo] = useState(null);
-  const [listeners, setListeners] = useState(0);
-  const [broadcasting, setBroadcasting] = useState(false);
-  const [captionsToListeners, setCaptionsToListeners] = useState(() => LS.get("tbl-listener-captions", false));
-  const broadcasterRef = useRef(null);
 
   const engineRef = useRef(null);
   const audioRef = useRef(null);
@@ -280,75 +274,6 @@ export function TranslationProvider({ children }) {
     setTesting(false);
   }, []);
 
-  useEffect(() => LS.set("tbl-listener-captions", captionsToListeners), [captionsToListeners]);
-
-  const createEvent = useCallback(async (fields = {}) => {
-    const res = await fetch(`${API}/events`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: fields.name || "Live Interpretation",
-        organization: fields.organization || profile.organization || "",
-        target_language: targetLang,
-        pin: fields.pin || null,
-        captions: captionsToListeners,
-      }),
-    });
-    if (!res.ok) throw new Error("Could not create event");
-    const info = await res.json();
-    setEventInfo(info);
-    return info;
-  }, [targetLang, captionsToListeners, profile.organization]);
-
-  const startEvent = useCallback(async (fields) => {
-    setError(null);
-    let ev = eventInfo;
-    if (!ev) ev = await createEvent(fields || {});
-    await start();
-    let stream = null;
-    for (let i = 0; i < 25; i++) {
-      stream = engineRef.current.audioEl?.srcObject;
-      if (stream) break;
-      await new Promise((r) => setTimeout(r, 200));
-    }
-    if (stream) {
-      try {
-        const b = new OperatorBroadcaster(`${WS_BASE}/api/ws/${ev.id}?role=operator`, { onCount: setListeners });
-        await b.start(stream);
-        broadcasterRef.current = b;
-        setBroadcasting(true);
-      } catch (e) {
-        setError("Broadcast could not start: " + e.message);
-      }
-    }
-    return ev;
-  }, [eventInfo, createEvent, start]);
-
-  const stopEvent = useCallback(() => {
-    if (broadcasterRef.current) { broadcasterRef.current.stop(); broadcasterRef.current = null; }
-    setBroadcasting(false);
-    setListeners(0);
-    stop();
-  }, [stop]);
-
-  const restartBroadcast = useCallback(async () => {
-    if (broadcasterRef.current) { broadcasterRef.current.stop(); broadcasterRef.current = null; }
-    setBroadcasting(false);
-    const stream = engineRef.current.audioEl?.srcObject;
-    if (stream && eventInfo) {
-      const b = new OperatorBroadcaster(`${WS_BASE}/api/ws/${eventInfo.id}?role=operator`, { onCount: setListeners });
-      await b.start(stream);
-      broadcasterRef.current = b;
-      setBroadcasting(true);
-    }
-  }, [eventInfo]);
-
-  useEffect(() => {
-    if (broadcasting && captionsToListeners && broadcasterRef.current) {
-      broadcasterRef.current.sendCaption(targetText);
-    }
-  }, [targetText, broadcasting, captionsToListeners]);
-
   const value = {
     status, sourceText, targetText, logs, rawEvents, error, active,
     translationMuted, inputMuted, duration, translatedSeconds,
@@ -360,8 +285,6 @@ export function TranslationProvider({ children }) {
     profile, setProfile, saveTranscripts, setSaveTranscripts,
     level, testing, metrics,
     start, stop, restart, reset,
-    createEvent, startEvent, stopEvent, restartBroadcast,
-    eventInfo, listeners, broadcasting, captionsToListeners, setCaptionsToListeners,
     toggleTranslationMute, toggleInputMute, testInput, stopTest,
     clearError: () => setError(null),
     MODES,

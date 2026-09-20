@@ -7,7 +7,6 @@ import { TranscriptPanel } from "../components/TranscriptPanel";
 import { LanguageCombobox } from "../components/LanguageCombobox";
 import { LevelMeter } from "../components/LevelMeter";
 import { SettingsDialog } from "../components/SettingsDialog";
-import { BroadcastPanel } from "../components/BroadcastPanel";
 import { SOURCE_LANGUAGES, TARGET_LANGUAGES, getTarget, sourceLabel } from "../lib/languages";
 
 const fmt = (s) => {
@@ -147,9 +146,6 @@ export default function Console() {
             </div>
           </div>
         </section>
-
-        {/* Multi-listener broadcast */}
-        <BroadcastPanel />
 
         {/* Transcript toolbar */}
         <div className="flex items-center justify-between">

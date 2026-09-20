@@ -1,0 +1,26 @@
+{
+  "summary": "Iteration 9 — End-to-end verification of user-bug fixes: (A) ambient-mode-toggle and (B) audio-output-select for headphone routing, plus regression on live WebRTC session, target-language flow, mute/restart, and backend hardening. RESULT: All acceptance criteria PASS. Backend: 23/23 pytest (12 translatebox + 11 security including the rate-limit test). Frontend: new controls render with correct data-testids (ambient-mode-toggle, audio-output-select) alongside existing testids. Ambient toggle flows into capture — /debug WebRTC log shows 'TEST INPUT started ... {\"deviceId\":\"default\",\"source\":\"mic\",\"ambient\":true}' when enabled and 'ambient':false when disabled; live START with ambient ON also logs 'Input stream acquired ... ambient:true'. Ambient checkbox is correctly disabled while a session is active. Output selector lists 'System default output' + 4 audiooutput devices (Chromium fake devices); selecting a non-default device via setSinkId did NOT raise an error banner or console error. LIVE session reached status-openai-dot=connected in ~2s with ambient ON, target=English; required /debug lines all present: 'Requesting ephemeral session from backend' -> 'Received ephemeral client secret' -> 'SDP offer created, posting to OpenAI' -> 'SDP answer applied — establishing stream' -> 'PeerConnection state: connected' -> 'Realtime data channel open' -> 'Realtime session created'. reconnectCount stayed 0 on healthy session; no spurious 'reconnect attempt' log. STOP produced 'Session stopped cleanly'. Target-drives-session verified: switching to French via Radix combobox and pressing START posted body target_language='fr' and reached connected in ~2s. STOP + second START (no reload) with target=English also reached connected in ~2s. Mute toggles / restart did not crash. Backend regression: /api/health openai_key_configured=true; /api/realtime-session with en/fr/es/de/ja returns 200 ek_ tokens with matching audio.output.language; invalid target -> 400; security headers present; no 'sk-' leakage anywhere; large instructions and upstream-failure handling verified; rate-limit 20/60s trips 429 as designed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_translatebox.py",
+    "/app/backend/tests/test_security_hardening.py",
+    "/app/test_reports/pytest/translatebox_iter9.xml",
+    "/app/test_reports/pytest/sec_iter9.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "translationEngine._capture(deviceId, source, ambient) correctly inverts echoCancellation/noiseSuppression/autoGainControl when ambient=true. The ambient flag is threaded through start() and testInput() and appears in the debug log payload — verified live.",
+    "setOutputDevice() lazily applies setSinkId in _applySink() and also re-applies on ontrack, so switching output between sessions is safe. outputSupported() gates the control (Chromium=supported).",
+    "Gentler reconnect logic: 'disconnected' only triggers _handleDrop() after a 4s grace period if the state is still unhealthy; 'failed' triggers immediately. Healthy connect keeps reconnectCount=0 (verified via /debug Reconnect Attempts=0).",
+    "Ambient checkbox is disabled while session is active (prevents mid-session getUserMedia mismatch) — good UX.",
+    "selectedOutput/ambientMode are persisted in localStorage under 'tbl-output' and 'tbl-ambient'."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (23/23 pytest)", "frontend": "100% — all fix-specific acceptance criteria verified"},
+  "test_credentials": "N/A (no app auth)",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "User-bug fixes (ambient TV mode + headphone output routing) are fully verified. Both testids ambient-mode-toggle and audio-output-select exist and work; ambient flag reaches capture (visible in /debug logs). Chromium test harness exposes fake audiooutput devices so setSinkId path was exercised. Live session still connects in ~2s. Rate-limit test (20/60s) in test_security_hardening.py should still run LAST or be spaced apart from UI START bursts; we waited 60s between UI START clusters and pytest runs and observed no 429s. All prior security-hardening protections remain intact."
+}
