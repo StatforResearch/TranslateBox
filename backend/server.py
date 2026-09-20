@@ -1,10 +1,13 @@
-from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi import FastAPI, APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 import os
+import time
 import logging
 import hashlib
+from collections import defaultdict, deque
 from pathlib import Path
 from pydantic import BaseModel
 import httpx
@@ -23,6 +26,31 @@ SUPPORTED_OUTPUT_LANGUAGES = {
     "en", "es", "pt", "fr", "ja", "ru", "zh", "de", "ko", "hi", "id", "vi", "it",
 }
 
+# Abuse controls for the (unauthenticated by design) session-minting endpoint.
+MAX_INSTRUCTIONS_LEN = int(os.environ.get("MAX_INSTRUCTIONS_LEN", "6000"))
+MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", "32768"))  # 32 KB
+RATE_LIMIT_MAX = int(os.environ.get("SESSION_RATE_LIMIT_MAX", "20"))
+RATE_LIMIT_WINDOW = int(os.environ.get("SESSION_RATE_LIMIT_WINDOW", "60"))  # seconds
+_rate_buckets = defaultdict(deque)
+
+
+def _client_ip(request: Request) -> str:
+    fwd = request.headers.get("x-forwarded-for")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _rate_limited(ip: str) -> bool:
+    now = time.monotonic()
+    bucket = _rate_buckets[ip]
+    while bucket and now - bucket[0] > RATE_LIMIT_WINDOW:
+        bucket.popleft()
+    if len(bucket) >= RATE_LIMIT_MAX:
+        return True
+    bucket.append(now)
+    return False
+
 app = FastAPI(title="TranslateBox Live API")
 api_router = APIRouter(prefix="/api")
 
@@ -31,6 +59,18 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger("translatebox")
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
+
+
 
 
 class SessionRequest(BaseModel):
@@ -53,12 +93,23 @@ async def health():
 
 
 @api_router.post("/realtime-session")
-async def create_realtime_session(req: SessionRequest):
+async def create_realtime_session(req: SessionRequest, request: Request):
     """Mint a short-lived OpenAI Realtime Translation client secret.
 
     The permanent OPENAI_API_KEY never leaves the server. The browser only
     receives the ephemeral `value` used to open a WebRTC translation call.
     """
+    # Abuse controls (endpoint is unauthenticated by design for the operator prototype).
+    ip = _client_ip(request)
+    if _rate_limited(ip):
+        raise HTTPException(
+            status_code=429,
+            detail="Too many session requests. Please wait a moment and try again.",
+        )
+    content_length = request.headers.get("content-length")
+    if content_length and content_length.isdigit() and int(content_length) > MAX_BODY_BYTES:
+        raise HTTPException(status_code=413, detail="Request body too large.")
+
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         raise HTTPException(
@@ -94,7 +145,7 @@ async def create_realtime_session(req: SessionRequest):
         "OpenAI-Safety-Identifier": safety_id,
     }
 
-    instructions = (req.instructions or "").strip()
+    instructions = (req.instructions or "").strip()[:MAX_INSTRUCTIONS_LEN]
 
     async def _mint(config):
         async with httpx.AsyncClient(timeout=20.0) as client:
@@ -128,10 +179,13 @@ async def create_realtime_session(req: SessionRequest):
         raise HTTPException(status_code=502, detail=f"Failed to reach OpenAI: {exc}")
 
     if resp.status_code >= 400:
+        # Log full upstream detail server-side; return a generic message to the client
+        # to avoid leaking upstream/internal information.
         logger.error("OpenAI session error %s: %s", resp.status_code, resp.text)
+        status = resp.status_code if resp.status_code in (429, 401, 402, 403) else 502
         raise HTTPException(
-            status_code=resp.status_code,
-            detail=f"OpenAI session creation failed: {resp.text}",
+            status_code=status,
+            detail="The translation service could not start a session right now. Please try again shortly.",
         )
 
     logger.info(
@@ -145,10 +199,15 @@ async def create_realtime_session(req: SessionRequest):
 
 app.include_router(api_router)
 
+app.add_middleware(SecurityHeadersMiddleware)
+
+# App uses no cookies/auth, so credentials are disabled (avoids the invalid
+# wildcard-origin + credentials combination flagged in the security audit).
+_cors_origins = os.environ.get('CORS_ORIGINS', '*').split(',')
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_credentials=False,
+    allow_origins=_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
