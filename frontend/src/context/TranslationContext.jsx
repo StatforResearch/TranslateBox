@@ -71,6 +71,7 @@ export function TranslationProvider({ children }) {
   const [devices, setDevices] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState("");
   const [captureSource, setCaptureSource] = useState("mic"); // 'mic' | 'display'
+  const [sourceLang, setSourceLang] = useState(() => LS.get("tbl-source", "auto"));
   const [targetLang, setTargetLang] = useState(() => LS.get("tbl-target", "en"));
   const [modeKey, setModeKey] = useState(() => LS.get("tbl-mode", "GENERAL"));
   const [customInstructions, setCustomInstructions] = useState(() => LS.get("tbl-custom", ""));
@@ -109,6 +110,7 @@ export function TranslationProvider({ children }) {
   }
 
   // persist config
+  useEffect(() => LS.set("tbl-source", sourceLang), [sourceLang]);
   useEffect(() => LS.set("tbl-target", targetLang), [targetLang]);
   useEffect(() => LS.set("tbl-mode", modeKey), [modeKey]);
   useEffect(() => LS.set("tbl-custom", customInstructions), [customInstructions]);
@@ -262,6 +264,7 @@ export function TranslationProvider({ children }) {
     translationMuted, inputMuted, duration, translatedSeconds,
     devices, selectedDevice, setSelectedDevice, captureSource, setCaptureSource,
     targetLang, setTargetLang, modeKey, setModeKey, customInstructions, setCustomInstructions,
+    sourceLang, setSourceLang,
     profile, setProfile, saveTranscripts, setSaveTranscripts,
     level, testing, metrics,
     start, stop, restart, reset,

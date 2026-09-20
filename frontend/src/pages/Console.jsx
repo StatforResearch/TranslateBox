@@ -7,7 +7,7 @@ import { TranscriptPanel } from "../components/TranscriptPanel";
 import { LanguageCombobox } from "../components/LanguageCombobox";
 import { LevelMeter } from "../components/LevelMeter";
 import { SettingsDialog } from "../components/SettingsDialog";
-import { TARGET_LANGUAGES, getTarget } from "../lib/languages";
+import { SOURCE_LANGUAGES, TARGET_LANGUAGES, getTarget, sourceLabel } from "../lib/languages";
 
 const fmt = (s) => {
   const m = String(Math.floor(s / 60)).padStart(2, "0");
@@ -20,6 +20,7 @@ export default function Console() {
   const {
     status, sourceText, targetText, error, active, translationMuted, inputMuted,
     targetLang, setTargetLang, devices, selectedDevice, setSelectedDevice,
+    sourceLang, setSourceLang,
     level, testing, testInput, stopTest, duration, metrics,
     start, stop, restart, toggleTranslationMute, toggleInputMute, clearError,
   } = useTranslationSession();
@@ -31,7 +32,7 @@ export default function Console() {
 
   const panels = (
     <>
-      <TranscriptPanel label="Source" badge={<Globe className="h-3.5 w-3.5" />} accent="cyan" text={sourceText} active={active} panelTestId="original-transcript-panel" textTestId="original-transcript-text" />
+      <TranscriptPanel label={`Source — ${sourceLabel(sourceLang)}`} badge={sourceLang === "auto" ? <Globe className="h-3.5 w-3.5" /> : sourceLang.slice(0, 3).toUpperCase()} accent="cyan" text={sourceText} active={active} panelTestId="original-transcript-panel" textTestId="original-transcript-text" />
       <TranscriptPanel label={`Translation — ${tgt.name}`} badge={tgt.code.toUpperCase()} accent="emerald" text={targetText} active={active} panelTestId="translated-transcript-panel" textTestId="translated-transcript-text" />
     </>
   );
@@ -56,11 +57,8 @@ export default function Console() {
           <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1.4fr] gap-3 md:gap-4 items-end">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 font-mono">Source</p>
-              <div className="mt-1.5 h-11 flex items-center gap-2 px-3 rounded-lg bg-slate-100 dark:bg-[#0F1623] border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300">
-                <Globe className="h-4 w-4 text-cyan-500" />
-                <span className="text-sm font-medium">Auto-detect</span>
-                <span className="ml-auto text-[10px] font-mono text-slate-400">70+ languages</span>
-              </div>
+              <LanguageCombobox options={SOURCE_LANGUAGES} value={sourceLang} onChange={setSourceLang} disabled={active} testId="source-language-select" />
+              <p className="mt-1 text-[10px] font-mono text-slate-400">Auto = detected among 70+ languages</p>
             </div>
             <div className="hidden md:flex items-center justify-center pb-2.5 text-slate-400"><ArrowRight className="h-5 w-5" /></div>
             <div>
