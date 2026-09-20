@@ -15,6 +15,8 @@ export class TranslationEngine {
     this.active = false;
     this.deviceId = null;
     this.captureSource = "mic";
+    this.ambient = false;
+    this._preferredSink = null;
     this.targetLanguage = "en";
     this.instructions = "";
     this.reconnectAttempts = 0;
@@ -43,11 +45,39 @@ export class TranslationEngine {
   attachAudio(el) {
     this.audioEl = el;
     if (el) {
+      el.playsInline = true;
+      el.volume = 1;
       el.onplaying = () => {
         this.setStatus({ outputAudio: el.muted ? "muted" : "active" });
         this.log("info", "Translated audio playback started");
       };
+      this._applySink();
     }
+  }
+
+  outputSupported() {
+    return typeof HTMLMediaElement !== "undefined" && "setSinkId" in HTMLMediaElement.prototype;
+  }
+
+  async listOutputDevices() {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices.filter((d) => d.kind === "audiooutput");
+  }
+
+  async _applySink() {
+    if (this.audioEl && this._preferredSink && this.outputSupported()) {
+      try {
+        await this.audioEl.setSinkId(this._preferredSink);
+      } catch (e) {
+        this.log("warn", "Could not route audio to selected output: " + e.message);
+      }
+    }
+  }
+
+  async setOutputDevice(deviceId) {
+    this._preferredSink = deviceId || null;
+    await this._applySink();
+    this.log("info", "Output device set", { deviceId });
   }
 
   async listDevices() {
@@ -56,7 +86,7 @@ export class TranslationEngine {
   }
 
   // ---- audio capture ----
-  async _capture(deviceId, source) {
+  async _capture(deviceId, source, ambient) {
     if (source === "display") {
       let stream;
       try {
@@ -77,12 +107,15 @@ export class TranslationEngine {
     }
     let stream;
     try {
+      // Ambient/TV mode disables the browser's echo/noise/gain processing so
+      // audio coming from a TV or PA system is not gated as "background noise".
+      const proc = ambient
+        ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+        : { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
       stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           deviceId: deviceId ? { exact: deviceId } : undefined,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
+          ...proc,
         },
         video: false,
       });
@@ -144,12 +177,12 @@ export class TranslationEngine {
     this.h.onLevel?.({ level: 0, peak: 0 });
   }
 
-  async testInput(deviceId, source = "mic") {
+  async testInput(deviceId, source = "mic", ambient = false) {
     await this.stopTest();
-    const stream = await this._capture(deviceId, source);
+    const stream = await this._capture(deviceId, source, ambient);
     this._testStream = stream;
     this.setStatus({ mic: "active" });
-    this.log("info", "TEST INPUT started (metering only, not sent to OpenAI)", { deviceId, source });
+    this.log("info", "TEST INPUT started (metering only, not sent to OpenAI)", { deviceId, source, ambient });
     this._startMeter(stream);
   }
 
@@ -192,11 +225,12 @@ export class TranslationEngine {
     return value;
   }
 
-  async start({ deviceId, source = "mic", targetLanguage = "en", instructions = "" } = {}) {
+  async start({ deviceId, source = "mic", targetLanguage = "en", instructions = "", ambient = false } = {}) {
     if (this.active) return;
     this.active = true;
     this.deviceId = deviceId;
     this.captureSource = source;
+    this.ambient = ambient;
     this.targetLanguage = targetLanguage;
     this.instructions = instructions;
     this.reconnectAttempts = 0;
@@ -212,10 +246,10 @@ export class TranslationEngine {
 
   async _connect() {
     await this.stopTest();
-    const stream = await this._capture(this.deviceId, this.captureSource);
+    const stream = await this._capture(this.deviceId, this.captureSource, this.ambient);
     this.localStream = stream;
     this.setStatus({ mic: "active" });
-    this.log("info", "Input stream acquired", { deviceId: this.deviceId, source: this.captureSource });
+    this.log("info", "Input stream acquired", { deviceId: this.deviceId, source: this.captureSource, ambient: this.ambient });
     this._startMeter(stream);
 
     const ephemeral = await this._getEphemeral();
@@ -234,15 +268,27 @@ export class TranslationEngine {
       if (st === "connected") {
         this.setStatus({ network: "optimal", openai: "connected" });
         this.reconnectAttempts = 0;
-      } else if (st === "disconnected" || st === "failed") {
+      } else if (st === "failed") {
         this.setStatus({ network: "degraded" });
         this._handleDrop();
+      } else if (st === "disconnected") {
+        // Transient blips shouldn't tear down the stream (which cuts audio).
+        // Only reconnect if it hasn't recovered after a short grace period.
+        this.setStatus({ network: "degraded" });
+        setTimeout(() => {
+          if (this.active && this.pc && (this.pc.connectionState === "disconnected" || this.pc.connectionState === "failed")) {
+            this._handleDrop();
+          }
+        }, 4000);
       }
     };
 
     pc.ontrack = (ev) => {
       this.log("info", "Remote translated audio track received");
-      if (this.audioEl) this.audioEl.srcObject = ev.streams[0];
+      if (this.audioEl) {
+        this.audioEl.srcObject = ev.streams[0];
+        this._applySink();
+      }
       this.setStatus({ outputAudio: this.audioEl && this.audioEl.muted ? "muted" : "active" });
     };
 

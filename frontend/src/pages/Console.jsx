@@ -20,6 +20,7 @@ export default function Console() {
   const {
     status, sourceText, targetText, error, active, translationMuted, inputMuted,
     targetLang, setTargetLang, devices, selectedDevice, setSelectedDevice,
+    outputDevices, selectedOutput, setOutputDevice, outputSupported, ambientMode, setAmbientMode,
     sourceLang, setSourceLang,
     level, testing, testInput, stopTest, duration, metrics,
     start, stop, restart, toggleTranslationMute, toggleInputMute, clearError,
@@ -86,6 +87,24 @@ export default function Console() {
               ) : (
                 <button data-testid="stop-test-input-button" onClick={stopTest} className="h-11 w-full md:w-auto px-4 flex items-center justify-center gap-2 rounded-lg border border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-sm font-semibold"><Radio className="h-4 w-4 animate-pulse" /> Stop test</button>
               )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr] gap-3 md:gap-4 items-start pt-3 border-t border-slate-100 dark:border-slate-800/60">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 font-mono">Output · headphones</p>
+              <select data-testid="audio-output-select" value={selectedOutput} disabled={!outputSupported} onChange={(e) => setOutputDevice(e.target.value)}
+                className="mt-1.5 w-full h-11 rounded-lg bg-slate-100 dark:bg-[#0F1623] border border-slate-300 dark:border-slate-700 px-3 text-sm font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60">
+                <option value="">System default output</option>
+                {outputDevices.map((d, i) => (<option key={d.deviceId || i} value={d.deviceId}>{d.label || `Output ${i + 1}`}</option>))}
+              </select>
+              <p className="mt-1 text-[10px] font-mono text-slate-400">{outputSupported ? "Choose your USB / Bluetooth headset for the translated audio." : "iOS/Safari routes to the phone's active output — connect the headset in system settings."}</p>
+            </div>
+            <div className="flex items-center h-11 mt-[22px]">
+              <label className="flex items-center gap-2 cursor-pointer" data-testid="ambient-mode-toggle" title="Disable noise/echo cancellation so a TV, speaker or PA system is not gated as background noise">
+                <input type="checkbox" checked={ambientMode} disabled={active} onChange={(e) => setAmbientMode(e.target.checked)} className="h-4 w-4 accent-cyan-500" />
+                <span className="text-sm font-medium text-slate-600 dark:text-slate-300">Ambient / TV audio mode</span>
+              </label>
             </div>
           </div>
         </section>

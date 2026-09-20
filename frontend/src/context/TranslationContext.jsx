@@ -70,6 +70,9 @@ export function TranslationProvider({ children }) {
   const [translatedSeconds, setTranslatedSeconds] = useState(0);
   const [devices, setDevices] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState("");
+  const [outputDevices, setOutputDevices] = useState([]);
+  const [selectedOutput, setSelectedOutput] = useState(() => LS.get("tbl-output", ""));
+  const [ambientMode, setAmbientMode] = useState(() => LS.get("tbl-ambient", false));
   const [captureSource, setCaptureSource] = useState("mic"); // 'mic' | 'display'
   const [sourceLang, setSourceLang] = useState(() => LS.get("tbl-source", "auto"));
   const [targetLang, setTargetLang] = useState(() => LS.get("tbl-target", "en"));
@@ -112,6 +115,13 @@ export function TranslationProvider({ children }) {
   // persist config
   useEffect(() => LS.set("tbl-source", sourceLang), [sourceLang]);
   useEffect(() => LS.set("tbl-target", targetLang), [targetLang]);
+  useEffect(() => LS.set("tbl-ambient", ambientMode), [ambientMode]);
+  useEffect(() => LS.set("tbl-output", selectedOutput), [selectedOutput]);
+
+  const setOutputDevice = useCallback((id) => {
+    setSelectedOutput(id);
+    engineRef.current.setOutputDevice(id);
+  }, []);
   useEffect(() => LS.set("tbl-mode", modeKey), [modeKey]);
   useEffect(() => LS.set("tbl-custom", customInstructions), [customInstructions]);
   useEffect(() => LS.set("tbl-profile", profile), [profile]);
@@ -122,6 +132,8 @@ export function TranslationProvider({ children }) {
       const list = await engineRef.current.listDevices();
       setDevices(list);
       setSelectedDevice((cur) => cur || (list[0]?.deviceId ?? ""));
+      const outs = await engineRef.current.listOutputDevices();
+      setOutputDevices(outs);
     } catch {
       /* ignore */
     }
@@ -129,6 +141,7 @@ export function TranslationProvider({ children }) {
 
   useEffect(() => {
     engineRef.current.attachAudio(audioRef.current);
+    if (selectedOutput) engineRef.current.setOutputDevice(selectedOutput);
     loadDevices();
     const onOnline = () => setStatus((s) => ({ ...s, network: engineRef.current.active ? "degraded" : "optimal" }));
     const onOffline = () => setStatus((s) => ({ ...s, network: "offline" }));
@@ -152,6 +165,7 @@ export function TranslationProvider({ children }) {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadDevices, selectedDevice]);
 
   const startTimer = () => {
@@ -183,6 +197,7 @@ export function TranslationProvider({ children }) {
         source: captureSource,
         targetLanguage: targetLang,
         instructions,
+        ambient: ambientMode,
       });
       setActive(true);
       startTimer();
@@ -191,7 +206,7 @@ export function TranslationProvider({ children }) {
       setError(mapError(e));
       setActive(false);
     }
-  }, [selectedDevice, captureSource, targetLang, modeKey, customInstructions, profile, loadDevices]);
+  }, [selectedDevice, captureSource, targetLang, modeKey, customInstructions, profile, ambientMode, loadDevices]);
 
   const stop = useCallback(() => {
     engineRef.current.stop();
@@ -246,13 +261,13 @@ export function TranslationProvider({ children }) {
   const testInput = useCallback(async () => {
     setError(null);
     try {
-      await engineRef.current.testInput(selectedDevice, captureSource);
+      await engineRef.current.testInput(selectedDevice, captureSource, ambientMode);
       setTesting(true);
     } catch (e) {
       setError(mapError(e));
       setTesting(false);
     }
-  }, [selectedDevice, captureSource]);
+  }, [selectedDevice, captureSource, ambientMode]);
 
   const stopTest = useCallback(async () => {
     await engineRef.current.stopTest();
@@ -263,6 +278,8 @@ export function TranslationProvider({ children }) {
     status, sourceText, targetText, logs, rawEvents, error, active,
     translationMuted, inputMuted, duration, translatedSeconds,
     devices, selectedDevice, setSelectedDevice, captureSource, setCaptureSource,
+    outputDevices, selectedOutput, setOutputDevice, outputSupported: engineRef.current.outputSupported(),
+    ambientMode, setAmbientMode,
     targetLang, setTargetLang, modeKey, setModeKey, customInstructions, setCustomInstructions,
     sourceLang, setSourceLang,
     profile, setProfile, saveTranscripts, setSaveTranscripts,
