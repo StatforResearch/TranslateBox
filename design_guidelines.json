@@ -1,174 +1,124 @@
 {
-  "project_info": {
-    "name": "TranslateBox Live",
-    "description": "Real-time spoken-language interpretation web app designed for tablets and desktops with a professional AV broadcast control console aesthetic.",
-    "theme": "Dark (Default, with Light Mode toggle)",
-    "target_devices": ["iPad / Android Tablets (Portrait & Landscape)", "macOS / Windows Chrome & Safari"]
-  },
-  "typography": {
-    "fonts": {
-      "headline": "Outfit, system-ui, sans-serif",
-      "body": "Plus Jakarta Sans, system-ui, sans-serif",
-      "mono": "JetBrains Mono, Roboto Mono, monospace"
-    },
-    "hierarchy": {
-      "brand_title": "text-2xl md:text-3xl font-bold tracking-wider uppercase font-mono text-slate-100",
-      "section_heading": "text-xs font-semibold tracking-widest uppercase text-slate-400 font-mono",
-      "transcript_header": "text-sm md:text-base font-bold tracking-wide uppercase text-slate-200",
-      "transcript_body": "text-base md:text-lg lg:text-xl leading-relaxed text-slate-100 font-sans",
-      "stat_value": "text-2xl md:text-3xl font-extrabold font-mono text-emerald-400 tracking-tight",
-      "stat_label": "text-xs font-medium uppercase tracking-wider text-slate-400 font-mono"
-    }
-  },
-  "colors": {
-    "dark_mode": {
-      "background": "#0A0D14",
-      "surface_card": "#121824",
-      "surface_card_border": "#1E293B",
-      "surface_header": "#0F1623",
+  "project_name": "TranslateBox Live",
+  "archetype": "THE PERFORMANCE PRO / BROADCAST AV CONSOLE (Refined & Minimalist)",
+  "context_type": "saas_app",
+  "app_style": "Pro Broadcast Operator Console — Ultra-Clean, Precision AV Aesthetics, Tablet-First",
+  "theme": {
+    "default": "dark",
+    "toggle_available": true,
+    "dark": {
+      "bg_primary": "#0A0D14",
+      "bg_surface": "#121824",
+      "bg_surface_elevated": "#1A2332",
+      "bg_card": "rgba(18, 24, 36, 0.75)",
+      "border": "rgba(255, 255, 255, 0.08)",
+      "border_hover": "rgba(255, 255, 255, 0.18)",
       "text_primary": "#F8FAFC",
       "text_secondary": "#94A3B8",
       "text_muted": "#64748B",
-      "brand_emerald_green": "#10B981",
-      "brand_emerald_glow": "rgba(16, 185, 129, 0.25)",
-      "brand_crimson_red": "#EF4444",
-      "brand_crimson_glow": "rgba(239, 68, 68, 0.25)",
-      "accent_cyan": "#06B6D4",
+      "accent_emerald": "#10B981",
       "accent_amber": "#F59E0B",
-      "status_active": "#10B981",
-      "status_warning": "#F59E0B",
-      "status_error": "#EF4444",
-      "status_idle": "#475569"
+      "accent_rose": "#EF4444",
+      "accent_cyan": "#06B6D4",
+      "accent_brand": "#3B82F6",
+      "level_meter_peak": "#EC4899",
+      "vu_green": "#22C55E",
+      "vu_yellow": "#EAB308",
+      "vu_red": "#EF4444"
     },
-    "light_mode": {
-      "background": "#F1F5F9",
-      "surface_card": "#FFFFFF",
-      "surface_card_border": "#CBD5E1",
-      "surface_header": "#E2E8F0",
+    "light": {
+      "bg_primary": "#F1F5F9",
+      "bg_surface": "#FFFFFF",
+      "bg_surface_elevated": "#F8FAFC",
+      "bg_card": "rgba(255, 255, 255, 0.85)",
+      "border": "rgba(15, 23, 42, 0.08)",
+      "border_hover": "rgba(15, 23, 42, 0.18)",
       "text_primary": "#0F172A",
       "text_secondary": "#475569",
-      "text_muted": "#64748B",
-      "brand_emerald_green": "#059669",
-      "brand_crimson_red": "#DC2626",
-      "accent_cyan": "#0891B2"
+      "text_muted": "#94A3B8",
+      "accent_emerald": "#059669",
+      "accent_amber": "#D97706",
+      "accent_rose": "#DC2626",
+      "accent_cyan": "#0891B2",
+      "accent_brand": "#2563EB"
     }
   },
-  "layout_and_grids": {
-    "header": {
-      "height": "h-16 md:h-20",
-      "style": "sticky top-0 z-50 bg-[#0F1623]/90 backdrop-blur-md border-b border-slate-800 px-4 md:px-8 flex items-center justify-between"
-    },
-    "main_container": {
-      "style": "max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6 flex flex-col min-h-[calc(100vh-5rem)]"
-    },
-    "control_console": {
-      "style": "bg-[#121824] border border-slate-800 rounded-2xl p-4 md:p-6 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-4 md:gap-6"
-    },
-    "transcript_grid": {
-      "style": "grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 flex-1 min-h-[420px] md:min-h-[520px]"
+  "typography": {
+    "heading_font": "Plus Jakarta Sans, sans-serif",
+    "body_font": "Inter, sans-serif",
+    "mono_font": "JetBrains Mono, monospace",
+    "hierarchy": {
+      "header_brand": "font-extrabold tracking-tight text-xl sm:text-2xl",
+      "section_heading": "font-semibold tracking-tight text-lg sm:text-xl",
+      "panel_title": "font-medium text-xs sm:text-sm uppercase tracking-wider text-muted-foreground",
+      "transcript_large": "text-lg sm:text-xl lg:text-2xl leading-relaxed font-normal",
+      "transcript_source": "text-base sm:text-lg lg:text-xl leading-relaxed opacity-90",
+      "stats_mono": "font-mono text-xs sm:text-sm font-medium tracking-wide"
     }
   },
-  "components": {
+  "spacing_and_layout": {
+    "container": "max-w-[1600px] mx-auto p-3 sm:p-5 lg:p-6 min-h-screen flex flex-col justify-between gap-4 sm:gap-6",
+    "grid_structure": "grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 items-stretch flex-grow",
+    "header_height": "h-16 border-b backdrop-blur-md px-4 sm:px-6 flex items-center justify-between z-40 sticky top-0",
+    "transcript_split": "lg:col-span-6 flex flex-col h-[calc(100vh-280px)] min-h-[420px] rounded-2xl border p-4 sm:p-6 backdrop-blur-xl shadow-xl transition-all duration-300 relative overflow-hidden",
+    "control_bar": "flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl border bg-surface backdrop-blur-xl shadow-lg"
+  },
+  "components_design": {
     "header": {
-      "title": "TRANSLATEBOX LIVE",
-      "sub_badge": "AV BROADCAST CONSOLE",
-      "language_pair_badge": "FRENCH (FR) → ENGLISH (EN)",
-      "actions": ["Theme Toggle (Light/Dark)", "PWA Install Button", "Debug Console Link (/debug)"]
+      "style": "Glassmorphic header with hairline border (border-white/10), crisp typography, clear live status indicators badge, and accessible icon controls.",
+      "brand_title": "TRANSLATEBOX LIVE",
+      "badge": "LIVE PRO CONSOLE"
     },
-    "status_bar": {
-      "title": "SYSTEM DIAGNOSTICS & HARDWARE STATES",
-      "indicators": [
-        {"name": "Microphone", "testid": "status-mic-dot", "states": ["active", "idle", "muted"]},
-        {"name": "OpenAI", "testid": "status-openai-dot", "states": ["connected", "connecting", "error"]},
-        {"name": "Translation", "testid": "status-translation-dot", "states": ["interpreting", "standby"]},
-        {"name": "Network", "testid": "status-network-dot", "states": ["optimal", "degraded", "offline"]}
-      ],
-      "timer_testid": "session-timer-display"
+    "level_meter": {
+      "style": "Tactile broadcast VU meter with segmented gradient bars (Green > Amber > Red), peak hold indicator, smooth dB numerical readout, and dedicated 'TEST INPUT' tactile button.",
+      "peak_indicator": "Active pink/red pulse when clipping occurs (> -3dB)"
     },
-    "controls": {
-      "start_button": {
-        "text": "START TRANSLATION",
-        "testid": "start-translation-button",
-        "style": "bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-lg md:text-xl py-4 px-8 rounded-xl shadow-lg shadow-emerald-900/40 active:scale-95 transition-all flex items-center gap-3 w-full md:w-auto justify-center"
-      },
-      "stop_button": {
-        "text": "STOP",
-        "testid": "stop-translation-button",
-        "style": "bg-red-600 hover:bg-red-500 text-white font-bold text-lg md:text-xl py-4 px-8 rounded-xl shadow-lg shadow-red-900/40 active:scale-95 transition-all flex items-center gap-3 w-full md:w-auto justify-center"
-      },
-      "mute_button": {
-        "text": "MUTE TRANSLATED AUDIO",
-        "testid": "mute-audio-button",
-        "style": "border border-slate-700 hover:bg-slate-800 text-slate-200 font-semibold px-5 py-3 rounded-xl transition-all"
-      },
-      "reset_button": {
-        "text": "RESET SESSION",
-        "testid": "reset-session-button",
-        "style": "border border-slate-700 hover:bg-slate-800 text-slate-300 font-semibold px-5 py-3 rounded-xl transition-all"
-      },
-      "device_selector": {
-        "label": "AUDIO INPUT DEVICE",
-        "testid": "audio-device-select"
+    "status_dots": {
+      "mic": "Mic / Audio capture health indicator",
+      "openai": "OpenAI Realtime WebSocket link status",
+      "translation": "Active translation processing state",
+      "network": "WebRTC network latency indicator",
+      "states": {
+        "connected": "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)] animate-pulse",
+        "warning": "bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]",
+        "error": "bg-rose-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]"
       }
+    },
+    "primary_start_button": {
+      "start_state": "bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_25px_rgba(16,185,129,0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all font-semibold rounded-xl text-base px-8 py-3.5 flex items-center gap-2",
+      "stop_state": "bg-rose-600 hover:bg-rose-500 text-white shadow-[0_0_25px_rgba(239,68,68,0.3)] animate-pulse hover:scale-[1.02] active:scale-[0.98] transition-all font-semibold rounded-xl text-base px-8 py-3.5 flex items-center gap-2"
     },
     "transcript_panels": {
-      "original_french": {
-        "label": "ORIGINAL — FRENCH",
-        "flag": "🇫🇷",
-        "panel_testid": "original-transcript-panel",
-        "text_testid": "original-transcript-text"
-      },
-      "translation_english": {
-        "label": "TRANSLATION — ENGLISH",
-        "flag": "🇬🇧",
-        "panel_testid": "translated-transcript-panel",
-        "text_testid": "translated-transcript-text"
-      }
-    },
-    "debug_page": {
-      "path": "/debug",
-      "elements": [
-        "WebRTC Peer Connection State",
-        "WebSocket Connection Status & Logs",
-        "Audio Buffer / Latency Graph",
-        "Raw Event Stream Inspector",
-        "Mock French Speech Audio Injector"
-      ]
+      "source_panel": "Subtle cool slate background with high-contrast readable typography for original speech stream.",
+      "translation_panel": "Rich deep obsidian/navy background with glowing accent scroll indicator and dynamic line highlight for incoming target interpretation.",
+      "fullscreen_mode": "Immersive dark stage mode that maximizes text size for long-distance viewing across church halls, auditoriums, and seminar rooms."
     }
   },
-  "motion_and_interactions": {
-    "live_recording_pulse": "animate-pulse bg-emerald-500 text-emerald-100",
-    "status_dot_glowing": "relative flex h-3 w-3 children-ping-effect",
-    "transcript_auto_scroll": "Smooth scroll lock to bottom when new interpreted sentences arrive"
-  },
-  "testing_requirements": {
-    "mandatory_data_testids": [
-      "app-header",
-      "start-translation-button",
-      "stop-translation-button",
-      "mute-audio-button",
-      "reset-session-button",
-      "audio-device-select",
-      "status-mic-dot",
-      "status-openai-dot",
-      "status-translation-dot",
-      "status-network-dot",
-      "session-timer-display",
-      "original-transcript-panel",
-      "original-transcript-text",
-      "translated-transcript-panel",
-      "translated-transcript-text",
-      "theme-toggle-button",
-      "pwa-install-button",
-      "debug-nav-link"
-    ]
-  },
-  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
-    "Ensure all interactive elements and diagnostic displays have explicit data-testid attributes.",
-    "Dark theme is default with high-contrast AV console feel; do not use pure black gradients, use deep slate/navy #0A0D14 and #121824.",
-    "Tablet touch targets must be at least 48px in height and width with clear visual feedback.",
-    "Dropdowns, select boxes, and overlays must have solid/opaque dark backgrounds (never transparent).",
-    "PWA install manifest and service worker configuration must be accessible in public/ folder.",
-    "Route /debug must provide comprehensive diagnostic controls and WebRTC/session logs."
-  ]
+  "image_urls": [
+    {
+      "category": "audio_console_reference",
+      "description": "Tactile audio mixer console",
+      "url": "https://images.unsplash.com/photo-1618609377864-68609b857e90?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzZ8MHwxfHNlYXJjaHwxfHxhdWRpbyUyMGJyb2FkY2FzdCUyMGNvbnNvbGUlMjBzdHVkaW8lMjBtaW5pbWFsfGVufDB8fHx8MTc4OTkzOTA4Nnww&ixlib=rb-4.1.0&q=85"
+    },
+    {
+      "category": "studio_setup",
+      "description": "Professional audio equipment close up",
+      "url": "https://images.unsplash.com/photo-1518972559570-7cc1309f3229?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzZ8MHwxfHNlYXJjaHw0fHxhdWRpbyUyMGJyb2FkY2FzdCUyMGNvbnNvbGUlMjBzdHVkaW8lMjBtaW5pbWFsfGVufDB8fHx8MTc4OTkzOTA4Nnww&ixlib=rb-4.1.0&q=85"
+    }
+  ],
+  "instructions_to_main_agent": [
+    "Retain ALL existing data-testid attributes on all interactive elements, containers, metrics, and modals without exception.",
+    "Do NOT change backend endpoints or WebRTC/OpenAI Realtime logic; this is purely a visual UI/UX refinement.",
+    "Ensure dark mode is default with seamless toggle to light mode.",
+    "Apply subtle glassmorphism (backdrop-blur-xl), fine 1px slate/white borders (border-white/10), and high-contrast typography.",
+    "Maintain high legibility in the transcript panels for distant viewing on tablets or broadcast monitors.",
+    "Provide clear interactive states (hover, focus, active, disabled) on every button and control with smooth CSS transitions.",
+    "Use JetBrains Mono or monospace font for timers, latency metrics, dB meters, and technical readouts."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": {
+    "avoid_slop": "Do not build cheap generic centered designs. Use broadcast-grade precision, subtle ambient glows on active states, clean grid hierarchy, and tailored line-heights.",
+    "spacing": "Ensure touch-friendly target areas on tablets (minimum 44x44px for main controls).",
+    "accessibility": "Ensure text contrast ratio meets WCAG AA (>= 4.5:1) in both dark and light modes.",
+    "test_ids": "Every button, input, selector, switch, meter, and display panel MUST retain its specified data-testid."
+  }
 }

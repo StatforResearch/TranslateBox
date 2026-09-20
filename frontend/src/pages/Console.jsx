@@ -53,7 +53,7 @@ export default function Console() {
 
       <main className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-8 space-y-5">
         {/* Language + audio control card */}
-        <section className="rounded-2xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 p-4 md:p-5 space-y-4">
+        <section className="rounded-2xl bg-white/80 dark:bg-[#121824]/70 backdrop-blur-xl border border-slate-200/70 dark:border-white/10 shadow-lg shadow-black/5 dark:shadow-black/20 p-4 md:p-5 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1.4fr] gap-3 md:gap-4 items-end">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 font-mono">Source</p>
@@ -100,11 +100,11 @@ export default function Console() {
         )}
 
         {/* Primary controls + compact status */}
-        <section className="rounded-2xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-slate-800 p-4 md:p-5 flex flex-col lg:flex-row items-center gap-4">
+        <section className="rounded-2xl bg-white/80 dark:bg-[#121824]/70 backdrop-blur-xl border border-slate-200/70 dark:border-white/10 shadow-lg shadow-black/5 dark:shadow-black/20 p-4 md:p-5 flex flex-col lg:flex-row items-center gap-4">
           {!active ? (
-            <button data-testid="start-translation-button" onClick={start} className="w-full lg:w-auto lg:flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-lg py-4 px-8 rounded-xl shadow-lg shadow-emerald-900/30 active:scale-[0.98] transition-transform flex items-center gap-3 justify-center min-h-[56px]"><Play className="h-6 w-6 fill-white" /> START</button>
+            <button data-testid="start-translation-button" onClick={start} className="w-full lg:w-auto lg:flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-lg py-4 px-8 rounded-xl shadow-[0_0_30px_rgba(16,185,129,0.35)] hover:scale-[1.02] active:scale-[0.98] transition-transform flex items-center gap-3 justify-center min-h-[56px]"><Play className="h-6 w-6 fill-white" /> START</button>
           ) : (
-            <button data-testid="stop-translation-button" onClick={stop} className="w-full lg:w-auto lg:flex-1 bg-red-600 hover:bg-red-500 text-white font-bold text-lg py-4 px-8 rounded-xl shadow-lg shadow-red-900/30 active:scale-[0.98] transition-transform flex items-center gap-3 justify-center min-h-[56px]"><Square className="h-6 w-6 fill-white" /> STOP</button>
+            <button data-testid="stop-translation-button" onClick={stop} className="w-full lg:w-auto lg:flex-1 bg-rose-600 hover:bg-rose-500 text-white font-bold text-lg py-4 px-8 rounded-xl shadow-[0_0_30px_rgba(239,68,68,0.35)] hover:scale-[1.02] active:scale-[0.98] transition-transform flex items-center gap-3 justify-center min-h-[56px]"><Square className="h-6 w-6 fill-white" /> STOP</button>
           )}
 
           <div className="flex items-center gap-2">

@@ -1,46 +1,40 @@
 import React from "react";
 
-const STATE_STYLES = {
-  active: { dot: "bg-emerald-400", ring: "bg-emerald-400", label: "ACTIVE" },
-  connected: { dot: "bg-emerald-400", ring: "bg-emerald-400", label: "CONNECTED" },
-  optimal: { dot: "bg-emerald-400", ring: "bg-emerald-400", label: "OPTIMAL" },
-  interpreting: { dot: "bg-cyan-400", ring: "bg-cyan-400", label: "INTERPRETING" },
-  connecting: { dot: "bg-amber-400", ring: "bg-amber-400", label: "CONNECTING" },
-  degraded: { dot: "bg-amber-400", ring: "bg-amber-400", label: "DEGRADED" },
-  muted: { dot: "bg-amber-400", ring: "bg-amber-400", label: "MUTED" },
-  denied: { dot: "bg-red-500", ring: "bg-red-500", label: "DENIED" },
-  error: { dot: "bg-red-500", ring: "bg-red-500", label: "ERROR" },
-  offline: { dot: "bg-red-500", ring: "bg-red-500", label: "OFFLINE" },
-  idle: { dot: "bg-slate-600", ring: "bg-slate-600", label: "IDLE" },
-  standby: { dot: "bg-slate-600", ring: "bg-slate-600", label: "STANDBY" },
+// state -> {label, tone}. tone drives dot color + ambient glow.
+const MAP = {
+  active: ["ACTIVE", "emerald"], connected: ["CONNECTED", "emerald"], optimal: ["OPTIMAL", "emerald"],
+  interpreting: ["LIVE", "cyan"],
+  connecting: ["CONNECTING", "amber"], degraded: ["DEGRADED", "amber"], muted: ["MUTED", "amber"],
+  denied: ["DENIED", "rose"], error: ["ERROR", "rose"], offline: ["OFFLINE", "rose"],
+  idle: ["IDLE", "slate"], standby: ["STANDBY", "slate"],
 };
 
-const LIVE = new Set(["active", "connected", "optimal", "interpreting", "connecting", "degraded"]);
+const TONE = {
+  emerald: { dot: "bg-emerald-400", glow: "shadow-[0_0_10px_2px_rgba(16,185,129,0.55)]", text: "text-emerald-500 dark:text-emerald-400" },
+  cyan: { dot: "bg-cyan-400", glow: "shadow-[0_0_10px_2px_rgba(6,182,212,0.55)]", text: "text-cyan-500 dark:text-cyan-400" },
+  amber: { dot: "bg-amber-400", glow: "shadow-[0_0_10px_2px_rgba(245,158,11,0.55)]", text: "text-amber-500 dark:text-amber-400" },
+  rose: { dot: "bg-rose-500", glow: "shadow-[0_0_10px_2px_rgba(239,68,68,0.55)]", text: "text-rose-500 dark:text-rose-400" },
+  slate: { dot: "bg-slate-400 dark:bg-slate-600", glow: "", text: "text-slate-400 dark:text-slate-500" },
+};
 
-export const StatusIndicator = ({ name, icon: Icon, state, testId }) => {
-  const s = STATE_STYLES[state] || STATE_STYLES.idle;
+const LIVE = new Set(["active", "connected", "optimal", "interpreting"]);
+
+export const StatusIndicator = ({ name, state, testId }) => {
+  const [label, toneKey] = MAP[state] || MAP.idle;
+  const t = TONE[toneKey];
   const animate = LIVE.has(state);
   return (
     <div
-      className="flex items-center gap-3 rounded-lg bg-slate-900/60 dark:bg-slate-900/60 px-3 py-2 border border-slate-200/70 dark:border-slate-800"
       data-testid={testId}
       data-state={state}
+      title={`${name}: ${label}`}
+      className="flex items-center gap-2 rounded-full h-9 pl-2.5 pr-3 bg-slate-100/70 dark:bg-white/[0.04] border border-slate-200/70 dark:border-white/10"
     >
-      <span className="relative flex h-3 w-3 shrink-0">
-        {animate && (
-          <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-60 ${s.ring}`} />
-        )}
-        <span className={`relative inline-flex h-3 w-3 rounded-full ${s.dot}`} />
+      <span className="relative flex h-2.5 w-2.5">
+        {animate && <span className={`absolute inline-flex h-full w-full rounded-full opacity-50 animate-ping ${t.dot}`} />}
+        <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${t.dot} ${t.glow}`} />
       </span>
-      {Icon && <Icon className="h-4 w-4 text-slate-500 dark:text-slate-400 hidden sm:block" strokeWidth={2} />}
-      <div className="flex flex-col leading-tight">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 font-mono">
-          {name}
-        </span>
-        <span className="text-[10px] uppercase tracking-widest text-slate-400 dark:text-slate-500 font-mono">
-          {s.label}
-        </span>
-      </div>
+      <span className="text-[11px] font-mono font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">{name}</span>
     </div>
   );
 };
