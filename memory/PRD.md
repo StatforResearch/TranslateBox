@@ -28,8 +28,21 @@ Production-quality MVP: real-time French speech → English speech interpretatio
 ## Known external blocker
 - Live WebRTC session cannot fully establish: OpenAI `/v1/realtime/translations/calls` returns **429 insufficient_quota** — the account tied to `OPENAI_API_KEY` has no credits. The key IS valid (ephemeral secrets mint fine). Fix: add credits + ensure Tier 1+ access to `gpt-realtime-translate`. No code change required.
 
-## Model note
-`gpt-realtime-translate` auto-detects the source language and does not support custom prompt/instruction steering. Output language is the only configurable translation parameter.
+## V0.5 (2026-06) — Operator upgrade
+- Directions FR→EN and EN→FR (segmented toggle; sets audio.output.language en/fr; source auto-detected).
+- AUDIO SETUP: device selector, input status, live level meter + peak, TEST INPUT (meter only, no OpenAI, no feedback), experimental Tab/Screen capture (getDisplayMedia).
+- Event Profile (name, org, speakers, vocab: names/acronyms/technical/biblical/places, additional) + Modes (General/Sermon/Academic/Business/Custom). Compiled into session instructions and sent to backend, which attaches them with graceful fallback (retry without) → `instructions_applied` flag. Included in exports.
+- Operator dashboard: summary bar, 5 status dots (Audio Input/OpenAI/Translation/Output Audio/Network), START/STOP/MUTE INPUT/MUTE TRANSLATION/RESTART, translated-audio ON/MUTED.
+- Live transcripts + FULLSCREEN; SessionInfo (duration, translated minutes, reconnect count, connection status, est. avg latency); estimated latency (source→translation event, labelled "Estimated").
+- Reconnection (up to 5 attempts, RECONNECTING…/LIVE), device-disconnect notification.
+- Privacy: SAVE TRANSCRIPTS default OFF (transcripts cleared on stop unless enabled). EXPORT TXT / PDF on demand.
+- Expanded /debug (PC/ICE state, reconnects, latency, output audio, capture source); key never displayed.
+- README.md added. Testing iteration_5: 12/12 backend, 100% frontend.
+
+## V0.5 verification status
+- Verified via testing agent (12/12 backend, 100% frontend). V0 FR→EN wiring preserved (regression confirmed).
+- NOT verifiable due to OpenAI 429 insufficient_quota (no account credits): live audio translation, real latency numbers, and the 30-minute stability run. These will run once the account is funded.
+- Security confirmed: no `sk-` key in any response body, DOM, or logs; browser uses only `ek_` ephemeral secrets.
 
 ## Backlog
 - P0: End-to-end live verification once `OPENAI_API_KEY` is added (French→English audio + both transcripts).

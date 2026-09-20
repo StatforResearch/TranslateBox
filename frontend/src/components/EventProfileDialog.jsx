@@ -1,5 +1,5 @@
 import React from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "./ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from "./ui/dialog";
 import { Settings2 } from "lucide-react";
 import { useTranslationSession } from "../context/TranslationContext";
 
@@ -46,6 +46,7 @@ export const EventProfileDialog = () => {
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto bg-white dark:bg-[#121824] border-slate-200 dark:border-slate-800">
         <DialogHeader>
           <DialogTitle className="font-mono tracking-wide uppercase">Event Profile</DialogTitle>
+          <DialogDescription className="sr-only">Configure event details and custom vocabulary compiled into the translation session instructions.</DialogDescription>
         </DialogHeader>
         <p className="text-xs text-slate-500 dark:text-slate-400 -mt-2">
           This information is compiled into the translation session instructions (one vocabulary item per line).

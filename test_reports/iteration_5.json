@@ -1,0 +1,35 @@
+{
+  "summary": "V0.5 upgrade verified end-to-end. Backend: 12/12 pytest passing (added 4 V0.5 tests: en/fr mint, instructions graceful fallback, health no key leak). Frontend Playwright: summary bar + 5 status dots render; direction toggle FR->EN/EN->FR swaps summary badge AND transcript panel labels (SOURCE — FRENCH / TRANSLATION — ENGLISH vs SOURCE — ENGLISH / TRANSLATION — FRENCH); all 5 modes (general/sermon/academic/business/custom) select and update summary-mode; custom textarea reveals when CUSTOM; Event Profile dialog opens, fields fill, closes cleanly and summary-event reflects 'Sunday Service'; Audio Setup with TEST INPUT works — status='Live', meter visible, stop button appears, and CRITICALLY no /api/realtime-session POST occurs during test-input; save-transcripts default unchecked (OFF); START with FR->EN + Sermon + profile POSTs to /api/realtime-session with target_language='en' AND non-empty instructions (675 chars) containing 'Sunday Service', 'Holy Spirit', and Sermon mode body ('biblical'); OpenAI returns 429 insufficient_quota (external), app surfaces error-banner and restores START button; export-txt-button triggers download named 'translatebox-Sunday-Service-*.txt'; fullscreen overlay opens/closes; Session Info fields all present; Debug page loads, both tabs work, and DOM contains NO 'sk-'.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "OpenAI WebRTC /v1/realtime/translations/calls (external)", "issue": "429 insufficient_quota — OpenAI org has no credits. App handles gracefully (error-banner + START restored). Same external blocker as iterations 2/3/4.", "affected_selectors": ["[data-testid=error-banner]"]}
+    ],
+    "design_issues": [
+      {"screen": "EventProfileDialog", "issues": ["Radix DialogContent warning: missing Description/aria-describedby (a11y warning, non-blocking)"]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_translatebox.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Add credits to the OpenAI org tied to OPENAI_API_KEY (external, no app change).",
+    "Optional a11y polish: add DialogDescription (or aria-describedby) to Event Profile dialog to silence Radix warning."
+  ],
+  "critical_code_review_comments": [
+    "Backend /api/realtime-session gracefully retries without instructions on 4xx — good: preserves working flow while still exposing instructions_applied boolean to the client.",
+    "server.py never logs api_key nor echoes it — verified no 'sk-' in any response body (health + realtime-session).",
+    "compileInstructions() correctly composes mode text + direction sentence + event/org + speakers + typed vocab groups + additional. Verified 675-char payload received by backend.",
+    "Frontend testInput path routes mic to level meter WITHOUT calling /api/realtime-session — confirmed 0 POSTs during TEST INPUT.",
+    "Console renders START/STOP as either-or (JSX toggles on `active`); after 429 the app reverts to inactive so START button reappears. Correct.",
+    "Debug page does NOT expose OPENAI_API_KEY anywhere — verified via full-page HTML scan.",
+    "V0 regression: FR->EN flow unchanged — start still acquires mic, mints ephemeral (backend returns ek_), and POSTs SDP offer to OpenAI (429 is a live-endpoint failure, wiring is intact)."
+  ],
+  "updated_files": ["/app/backend/tests/test_translatebox.py"],
+  "success_rate": {"backend": "100% (12/12 pytest)", "frontend": "100% UI/wiring; live OpenAI /calls 429 insufficient_quota (external)"},
+  "test_credentials": "N/A (no app auth)",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "V0.5 fully wired. Backend adds instructions passthrough with graceful fallback + instructions_applied bool; frontend compiles mode+vocab+event into POST body verified 675 chars. Only external blocker is OpenAI 429 insufficient_quota. When running pytest: `export $(grep -v '^#' /app/frontend/.env | xargs)` first because REACT_APP_BACKEND_URL lives in frontend/.env. Playwright: to capture the instructions body, attach page.on('request') filter for '/api/realtime-session' before clicking start-translation-button. Radix dialog needs wait_for_timeout(300-400) after open before filling profile-* fields.",
+  "rca of the issue": "No app-side issue. External OpenAI 429 insufficient_quota is the only failing outcome, and the app handles it gracefully (error-banner shown, PC torn down, START restored). Mitigation: fund the OpenAI org."
+}

@@ -76,3 +76,44 @@ def test_realtime_session_case_insensitive_target():
     r = _post_session("FR")
     assert r.status_code == 200, r.text
     assert r.json()["session"]["audio"]["output"]["language"] == "fr"
+
+
+# ---- V0.5 upgrade: FR<->EN + instructions + security ----
+
+def test_v05_target_en_mints():
+    r = requests.post(f"{BASE_URL}/api/realtime-session", json={"target_language": "en"}, timeout=30)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["value"].startswith("ek_")
+    assert body["session"]["audio"]["output"]["language"] == "en"
+    assert "sk-" not in json.dumps(body)
+
+
+def test_v05_target_fr_mints():
+    r = requests.post(f"{BASE_URL}/api/realtime-session", json={"target_language": "fr"}, timeout=30)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["value"].startswith("ek_")
+    assert body["session"]["audio"]["output"]["language"] == "fr"
+    assert "sk-" not in json.dumps(body)
+
+
+def test_v05_instructions_graceful_fallback():
+    """Non-empty instructions must still mint a session and include instructions_applied bool."""
+    payload = {
+        "target_language": "en",
+        "instructions": "You are a sermon interpreter. Vocab: Holy Spirit, Kingdom of God. Event: Sunday Service.",
+    }
+    r = requests.post(f"{BASE_URL}/api/realtime-session", json=payload, timeout=30)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["value"].startswith("ek_")
+    assert "instructions_applied" in body
+    assert isinstance(body["instructions_applied"], bool)
+    assert "sk-" not in json.dumps(body)
+
+
+def test_v05_health_no_key_leak():
+    r = requests.get(f"{BASE_URL}/api/health", timeout=15)
+    assert r.status_code == 200
+    assert "sk-" not in json.dumps(r.json())
