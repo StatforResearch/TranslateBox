@@ -300,6 +300,7 @@ async def _broadcast_status(eid, live):
 @app.websocket("/api/ws/{eid}")
 async def ws_broadcast(websocket: WebSocket, eid: str, role: str = "listener", pin: str = None):
     if eid not in EVENTS:
+        await websocket.accept()
         await websocket.close(code=4404)
         return
     room = _room(eid)

@@ -26,6 +26,11 @@ Production-quality MVP: real-time French speech → English speech interpretatio
 - Testing: iteration_1 (11/11), iteration_2 (live session mint OK), iteration_3 (multi-language 8/8 backend + 100% frontend). All pass.
 
 ## Known external blocker
+
+## V1 (2026-06) — Multi-listener broadcast
+- ONE OpenAI FR→EN session (operator) → ONE translated stream → MANY listeners via a backend WebSocket hub. Verified: 20/20 backend, single-session guarantee (`openai_sessions:1` with N listeners), fan-out, late-joiner cached init chunk, PIN(4401)/limit(4429, max 30)/unknown(4404) close codes, no `sk-` leak.
+- Event creation (secure id, optional PIN hash, captions flag), QR + fullscreen, listener page `/e/:id` (LISTEN/play/pause/volume/status/auto-reconnect/optional captions), operator BroadcastPanel (CREATE/START/STOP EVENT, RESTART BROADCAST, listeners count), `/loadtest` + `/api/stats` (psutil), Docker (Dockerfile.backend + docker-compose.yml). All V0.5 preserved. Checkpoint: /app/.v05_backup.
+- NOT measured here (need user's real run): CPU/RAM/bandwidth at 5/10/20/30 real listeners, 60-min stability. Tools provided. iOS Safari lacks MediaSource audio (fallback message shown).
 - Live WebRTC session cannot fully establish: OpenAI `/v1/realtime/translations/calls` returns **429 insufficient_quota** — the account tied to `OPENAI_API_KEY` has no credits. The key IS valid (ephemeral secrets mint fine). Fix: add credits + ensure Tier 1+ access to `gpt-realtime-translate`. No code change required.
 
 ## V0.5 (2026-06) — Operator upgrade

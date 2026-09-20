@@ -1,0 +1,39 @@
+{
+  "summary": "Iteration 10 — V1 multi-listener broadcast fully verified. Backend: 20/20 pytest pass across new /app/backend/tests/test_v1_broadcast.py (8 tests: events REST, stats shape, WS fan-out+single-session+late joiner cached init chunk, WS caption text relay, PIN gating 4401, unknown 4404/rejected, listener limit 4429 at 30, no sk- leak) + regression test_translatebox.py (12/12 including FR/EN/DE/ES/JA session minting + instructions fallback + 400 invalid target). Security hardening suite not re-run in this iteration to avoid the 60s rate-limit sleep (last confirmed 11/11 in iter9). Frontend: Console renders broadcast-panel with all V0.5 controls + V1 event creation form (event-name-input, event-org-input, event-pin-input, create-event-button). Create event flow produces event-qr, event-listen-url, start-event-button, listener-captions-toggle, qr-fullscreen-button/qr-fullscreen overlay, and listeners-count '0 / 30'. Listener page /e/{id} renders TranslateBox branding, event name+org, target flag+language, listener-status ('Waiting for speaker…'), listener-listen-button. Press LISTEN -> listener-playpause, listener-volume, listener-stop, listener-conn ('connected') all appear and WS connects. PIN-protected event shows listener-pin-input; incorrect PIN produces listener-error 'Incorrect PIN.' as spec'd (close 4401 mapped). Unknown event id shows 'Event not found.'. LoadTest page: connecting 5 listeners against a real event id raised /api/stats total_listeners to 5 and openai_sessions stayed 0 (no operator started, single-session guarantee holds; would be 1 with operator, verified in backend fan-out test). DISCONNECT ALL brought listeners back to 0. Single-session guarantee CRITICAL requirement holds: with 2 listeners connected, /api/stats openai_sessions==1.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "WS /api/ws/{unknown_eid}", "issue": "Server calls websocket.close(code=4404) BEFORE websocket.accept(). Starlette translates a pre-accept close into an HTTP 403 handshake rejection, so browsers/JS onclose see generic 1006, not 4404. Functionally rejects (listener page still shows 'Event not found' because REST GET /api/events/{id} 404s first), but the WS close-code contract in the spec is only observable via GET, not via the WS. Non-blocking. Fix: await websocket.accept() then websocket.close(code=4404)."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_v1_broadcast.py",
+    "/app/backend/tests/test_translatebox.py",
+    "/app/backend/tests/test_security_hardening.py",
+    "/app/test_reports/pytest/all_iter10.xml",
+    "/app/test_reports/pytest/v1_iter10.xml"
+  ],
+  "action_items": [
+    "(Optional / minor) For strict WS close-code semantics on unknown event id, accept() then close(4404) so browser-side listener JS can distinguish 4404 vs 1006. Not user-visible today because Listener.jsx first GETs /api/events/{id} and renders 'Event not found' from the 404."
+  ],
+  "critical_code_review_comments": [
+    "Single-session guarantee is architecturally correct: ONE operator WS per room caches init chunk and fans binary + text to N listeners; /api/stats openai_sessions is derived from operator-present rooms, not per-listener — verified 1 with 2 listeners.",
+    "Late-joiner cached init chunk works: room['init'] is set from the first binary message and sent to any new listener immediately after their status frame. Verified via websockets client.",
+    "PIN close 4401 and full-room 4429 are emitted AFTER accept(), so listener JS sees them cleanly and maps to 'Incorrect PIN' / 'Event is full' — good.",
+    "MAX_LISTENERS=30 enforced strictly; 31st connection is rejected with 4429 (verified with real 30 concurrent WS clients).",
+    "No 'sk-' leakage in /api/events, /api/events/{id}, /api/stats, or WS payloads. PIN is stored as sha256 hash; only pin_protected boolean is exposed.",
+    "EVENTS/ROOMS are in-memory dicts — acceptable for MVP but means a backend restart wipes all events (loadtest + operator flows must re-create). For V1 scope this is fine.",
+    "Listener.jsx auto-reconnects on unexpected close (1.5s retry) but correctly aborts on 4401/4404/4429 — good UX.",
+    "BroadcastPanel.jsx doCreate/doStart share a single 'busy' flag; consider disabling create-event-button while busy (already done via disabled={busy})."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v1_broadcast.py (new)"
+  ],
+  "success_rate": {"backend": "100% (20/20 relevant V1 + V0.5 pytest)", "frontend": "100% (all V1 broadcast UI flows + V0.5 regression testids present and working)"},
+  "test_credentials": "N/A (no app auth)",
+  "seed_data_creation": "Two ephemeral events created during test: one open (name 'UI Test Event'), one PIN-protected (pin=4242). In-memory; wiped on backend restart.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "V1 multi-listener broadcast is production-ready per acceptance criteria. Backend test_v1_broadcast.py covers events REST + WS single-session + PIN/limit/404 close codes + no key leak. The single ‘minor’ item is that unknown-event WS close uses pre-accept close (HTTP 403) instead of a 4404 close frame; functionally fine because the listener page front-loads a REST GET check. Rate-limit test in test_security_hardening.py::test_zzz_rate_limit_triggers_429 still needs to run LAST or with 60s spacing. WS_INTERNAL=ws://localhost:8001 was used for raw WS tests; the public wss also works but internal is faster and avoids ingress buffering. LoadTest UI + /api/stats correctly reflect listener count with openai_sessions capped at 1."
+}

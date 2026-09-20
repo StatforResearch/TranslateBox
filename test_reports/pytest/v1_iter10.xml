@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="8" time="3.457" timestamp="2026-09-20T22:00:38.408377+00:00" hostname="agent-env-f37fe666-52b4-4e6d-94d6-972e7f20d608"><testcase classname="tests.test_v1_broadcast" name="test_create_event_returns_id_and_path" time="0.231" /><testcase classname="tests.test_v1_broadcast" name="test_get_event_public_info_and_404" time="0.444" /><testcase classname="tests.test_v1_broadcast" name="test_stats_shape" time="0.262" /><testcase classname="tests.test_v1_broadcast" name="test_ws_fanout_and_single_session_and_late_joiner" time="1.049" /><testcase classname="tests.test_v1_broadcast" name="test_ws_pin_gating" time="0.196" /><testcase classname="tests.test_v1_broadcast" name="test_ws_unknown_event_4404" time="0.003"><failure message="websockets.exceptions.InvalidStatus: server rejected WebSocket connection: HTTP 403">backend/tests/test_v1_broadcast.py:176: in test_ws_unknown_event_4404
+    _run(_unknown_impl())
+backend/tests/test_v1_broadcast.py:75: in _run
+    return asyncio.run(coro)
+           ^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/asyncio/runners.py:190: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/asyncio/base_events.py:654: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+backend/tests/test_v1_broadcast.py:170: in _unknown_impl
+    async with _ws("nonexistent-abc123", role="listener") as l:
+/root/.venv/lib/python3.11/site-packages/websockets/asyncio/client.py:601: in __aenter__
+    return await self
+           ^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/websockets/asyncio/client.py:557: in __await_impl__
+    await self.connection.handshake(
+/root/.venv/lib/python3.11/site-packages/websockets/asyncio/client.py:115: in handshake
+    raise self.protocol.handshake_exc
+/root/.venv/lib/python3.11/site-packages/websockets/client.py:327: in parse
+    self.process_response(response)
+/root/.venv/lib/python3.11/site-packages/websockets/client.py:144: in process_response
+    raise InvalidStatus(response)
+E   websockets.exceptions.InvalidStatus: server rejected WebSocket connection: HTTP 403</failure></testcase><testcase classname="tests.test_v1_broadcast" name="test_ws_listener_limit_4429" time="0.193" /><testcase classname="tests.test_v1_broadcast" name="test_no_sk_key_leak_in_events_or_stats" time="0.506" /></testsuite></testsuites>
