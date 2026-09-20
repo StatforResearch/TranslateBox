@@ -1,0 +1,174 @@
+{
+  "project_info": {
+    "name": "TranslateBox Live",
+    "description": "Real-time spoken-language interpretation web app designed for tablets and desktops with a professional AV broadcast control console aesthetic.",
+    "theme": "Dark (Default, with Light Mode toggle)",
+    "target_devices": ["iPad / Android Tablets (Portrait & Landscape)", "macOS / Windows Chrome & Safari"]
+  },
+  "typography": {
+    "fonts": {
+      "headline": "Outfit, system-ui, sans-serif",
+      "body": "Plus Jakarta Sans, system-ui, sans-serif",
+      "mono": "JetBrains Mono, Roboto Mono, monospace"
+    },
+    "hierarchy": {
+      "brand_title": "text-2xl md:text-3xl font-bold tracking-wider uppercase font-mono text-slate-100",
+      "section_heading": "text-xs font-semibold tracking-widest uppercase text-slate-400 font-mono",
+      "transcript_header": "text-sm md:text-base font-bold tracking-wide uppercase text-slate-200",
+      "transcript_body": "text-base md:text-lg lg:text-xl leading-relaxed text-slate-100 font-sans",
+      "stat_value": "text-2xl md:text-3xl font-extrabold font-mono text-emerald-400 tracking-tight",
+      "stat_label": "text-xs font-medium uppercase tracking-wider text-slate-400 font-mono"
+    }
+  },
+  "colors": {
+    "dark_mode": {
+      "background": "#0A0D14",
+      "surface_card": "#121824",
+      "surface_card_border": "#1E293B",
+      "surface_header": "#0F1623",
+      "text_primary": "#F8FAFC",
+      "text_secondary": "#94A3B8",
+      "text_muted": "#64748B",
+      "brand_emerald_green": "#10B981",
+      "brand_emerald_glow": "rgba(16, 185, 129, 0.25)",
+      "brand_crimson_red": "#EF4444",
+      "brand_crimson_glow": "rgba(239, 68, 68, 0.25)",
+      "accent_cyan": "#06B6D4",
+      "accent_amber": "#F59E0B",
+      "status_active": "#10B981",
+      "status_warning": "#F59E0B",
+      "status_error": "#EF4444",
+      "status_idle": "#475569"
+    },
+    "light_mode": {
+      "background": "#F1F5F9",
+      "surface_card": "#FFFFFF",
+      "surface_card_border": "#CBD5E1",
+      "surface_header": "#E2E8F0",
+      "text_primary": "#0F172A",
+      "text_secondary": "#475569",
+      "text_muted": "#64748B",
+      "brand_emerald_green": "#059669",
+      "brand_crimson_red": "#DC2626",
+      "accent_cyan": "#0891B2"
+    }
+  },
+  "layout_and_grids": {
+    "header": {
+      "height": "h-16 md:h-20",
+      "style": "sticky top-0 z-50 bg-[#0F1623]/90 backdrop-blur-md border-b border-slate-800 px-4 md:px-8 flex items-center justify-between"
+    },
+    "main_container": {
+      "style": "max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6 flex flex-col min-h-[calc(100vh-5rem)]"
+    },
+    "control_console": {
+      "style": "bg-[#121824] border border-slate-800 rounded-2xl p-4 md:p-6 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-4 md:gap-6"
+    },
+    "transcript_grid": {
+      "style": "grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 flex-1 min-h-[420px] md:min-h-[520px]"
+    }
+  },
+  "components": {
+    "header": {
+      "title": "TRANSLATEBOX LIVE",
+      "sub_badge": "AV BROADCAST CONSOLE",
+      "language_pair_badge": "FRENCH (FR) → ENGLISH (EN)",
+      "actions": ["Theme Toggle (Light/Dark)", "PWA Install Button", "Debug Console Link (/debug)"]
+    },
+    "status_bar": {
+      "title": "SYSTEM DIAGNOSTICS & HARDWARE STATES",
+      "indicators": [
+        {"name": "Microphone", "testid": "status-mic-dot", "states": ["active", "idle", "muted"]},
+        {"name": "OpenAI", "testid": "status-openai-dot", "states": ["connected", "connecting", "error"]},
+        {"name": "Translation", "testid": "status-translation-dot", "states": ["interpreting", "standby"]},
+        {"name": "Network", "testid": "status-network-dot", "states": ["optimal", "degraded", "offline"]}
+      ],
+      "timer_testid": "session-timer-display"
+    },
+    "controls": {
+      "start_button": {
+        "text": "START TRANSLATION",
+        "testid": "start-translation-button",
+        "style": "bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-lg md:text-xl py-4 px-8 rounded-xl shadow-lg shadow-emerald-900/40 active:scale-95 transition-all flex items-center gap-3 w-full md:w-auto justify-center"
+      },
+      "stop_button": {
+        "text": "STOP",
+        "testid": "stop-translation-button",
+        "style": "bg-red-600 hover:bg-red-500 text-white font-bold text-lg md:text-xl py-4 px-8 rounded-xl shadow-lg shadow-red-900/40 active:scale-95 transition-all flex items-center gap-3 w-full md:w-auto justify-center"
+      },
+      "mute_button": {
+        "text": "MUTE TRANSLATED AUDIO",
+        "testid": "mute-audio-button",
+        "style": "border border-slate-700 hover:bg-slate-800 text-slate-200 font-semibold px-5 py-3 rounded-xl transition-all"
+      },
+      "reset_button": {
+        "text": "RESET SESSION",
+        "testid": "reset-session-button",
+        "style": "border border-slate-700 hover:bg-slate-800 text-slate-300 font-semibold px-5 py-3 rounded-xl transition-all"
+      },
+      "device_selector": {
+        "label": "AUDIO INPUT DEVICE",
+        "testid": "audio-device-select"
+      }
+    },
+    "transcript_panels": {
+      "original_french": {
+        "label": "ORIGINAL — FRENCH",
+        "flag": "🇫🇷",
+        "panel_testid": "original-transcript-panel",
+        "text_testid": "original-transcript-text"
+      },
+      "translation_english": {
+        "label": "TRANSLATION — ENGLISH",
+        "flag": "🇬🇧",
+        "panel_testid": "translated-transcript-panel",
+        "text_testid": "translated-transcript-text"
+      }
+    },
+    "debug_page": {
+      "path": "/debug",
+      "elements": [
+        "WebRTC Peer Connection State",
+        "WebSocket Connection Status & Logs",
+        "Audio Buffer / Latency Graph",
+        "Raw Event Stream Inspector",
+        "Mock French Speech Audio Injector"
+      ]
+    }
+  },
+  "motion_and_interactions": {
+    "live_recording_pulse": "animate-pulse bg-emerald-500 text-emerald-100",
+    "status_dot_glowing": "relative flex h-3 w-3 children-ping-effect",
+    "transcript_auto_scroll": "Smooth scroll lock to bottom when new interpreted sentences arrive"
+  },
+  "testing_requirements": {
+    "mandatory_data_testids": [
+      "app-header",
+      "start-translation-button",
+      "stop-translation-button",
+      "mute-audio-button",
+      "reset-session-button",
+      "audio-device-select",
+      "status-mic-dot",
+      "status-openai-dot",
+      "status-translation-dot",
+      "status-network-dot",
+      "session-timer-display",
+      "original-transcript-panel",
+      "original-transcript-text",
+      "translated-transcript-panel",
+      "translated-transcript-text",
+      "theme-toggle-button",
+      "pwa-install-button",
+      "debug-nav-link"
+    ]
+  },
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "Ensure all interactive elements and diagnostic displays have explicit data-testid attributes.",
+    "Dark theme is default with high-contrast AV console feel; do not use pure black gradients, use deep slate/navy #0A0D14 and #121824.",
+    "Tablet touch targets must be at least 48px in height and width with clear visual feedback.",
+    "Dropdowns, select boxes, and overlays must have solid/opaque dark backgrounds (never transparent).",
+    "PWA install manifest and service worker configuration must be accessible in public/ folder.",
+    "Route /debug must provide comprehensive diagnostic controls and WebRTC/session logs."
+  ]
+}
