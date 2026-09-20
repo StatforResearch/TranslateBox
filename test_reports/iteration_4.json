@@ -1,0 +1,44 @@
+{
+  "summary": "Validated the 3 new UX features (swap button, native names, searchable comboboxes) end-to-end. Backend regression 8/8 pytest passed. Frontend: source combobox opens Popover+Command, search 'jap' filters to Japanese, selecting sets source to 'Japanese · 日本語' and left panel to 'ORIGINAL — JAPANESE'. Target combobox has 13 langs, search 'spa' filters to Spanish, selecting sets 'Spanish · Español' and right panel 'TRANSLATION — SPANISH'. Swap flow: set source=French, target=Spanish, click swap-languages-button -> source becomes 'Spanish · Español', target becomes 'French · Français', panels update to ORIGINAL — SPANISH / TRANSLATION — FRENCH, controls badge shows 'SPANISH → FR'. Pressing START posted EXACTLY {\"target_language\":\"fr\"} to /api/realtime-session (network capture). Swap disabled when source=auto (verified True), enabled after concrete source. Native names visible in all button labels and dropdown rows. OpenAI /calls returns 429 insufficient_quota (external), app surfaces error-banner gracefully and reverts to START.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "OpenAI WebRTC /v1/realtime/translations/calls", "issue": "429 insufficient_quota — external OpenAI account has no credits. App handles gracefully (error-banner shown, PC torn down, START restored).", "affected_selectors": ["[data-testid=error-banner]", "[data-testid=status-openai-dot]"]}
+    ],
+    "design_issues": []
+  },
+  "e2e_observations": {
+    "swap_disabled_when_source_auto": true,
+    "swap_enabled_after_concrete_source": true,
+    "source_button_text_after_japanese": "Japanese· 日本語",
+    "target_button_text_after_spanish": "🇪🇸Spanish· Español",
+    "after_swap_source_text": "Spanish· Español",
+    "after_swap_target_text": "🇫🇷French· Français",
+    "original_panel_after_swap": "ORIGINAL — SPANISH",
+    "translation_panel_after_swap": "TRANSLATION — FRENCH",
+    "controls_badge_after_swap": "SPANISH → FR",
+    "posted_body_on_start": "{\"target_language\":\"fr\"}",
+    "error_banner_text_prefix": "Failed to connect to OpenAI Realtime (429). ... no credits remaining ...",
+    "start_button_restored_after_error": true,
+    "controls_disabled_while_active": "Wired via disabled={active}/swapDisabled in Console.jsx (verified in code). After the fast 429 error the app reverts to inactive so controls read as enabled again (expected)."
+  },
+  "test_report_links": ["/app/backend/tests/test_translatebox.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Add credits to the OpenAI org tied to OPENAI_API_KEY — same external blocker as iterations 2/3. No app code change required."
+  ],
+  "critical_code_review_comments": [
+    "LanguageCombobox filter encodes value as `${name}|${native}|${code}` — so search matches on English name, native endonym, or ISO code. Good UX.",
+    "Console.jsx swapLanguages() correctly maps source English name -> target ISO via sourceToTargetCode, and target ISO -> source English name via targetToSourceCode. Swap disabled when sourceLang==='auto' — correct.",
+    "Popover uses Radix `--radix-popover-trigger-width` so dropdown matches trigger width — good.",
+    "Minor: swap button title says 'Set a specific source language to swap' when disabled; could be more explicit but acceptable."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (8/8 pytest)", "frontend": "100% UX wiring; live WebRTC 429 insufficient_quota (external)"},
+  "test_credentials": "N/A",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Swap button, native names, and searchable comboboxes all fully wired and verified. Backend test file at /app/backend/tests/test_translatebox.py — remember to export REACT_APP_BACKEND_URL before running pytest (it's in frontend/.env, not backend env). Playwright note: use `[cmdk-item]:has-text(\"...\")` to click combobox options after `wait_for_timeout(300)` post-open. OpenAI account still has 0 credits — /calls returns 429; funding the org is the only remaining action.",
+  "rca of the issue": "No app-side issue. Only failure is external OpenAI 429 insufficient_quota. Mitigation: fund the OpenAI org."
+}
