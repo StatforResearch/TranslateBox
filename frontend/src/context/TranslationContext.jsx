@@ -2,7 +2,8 @@ import React, { createContext, useContext, useEffect, useRef, useState, useCallb
 import { TranslationEngine } from "../lib/translationEngine";
 import { MODES, EMPTY_PROFILE, compileInstructions } from "../lib/profiles";
 import { getTarget } from "../lib/languages";
-import { OperatorBroadcaster, WS_BASE } from "../lib/broadcast";
+import { usePersistentState } from "../hooks/usePersistentState";
+import { useBroadcast } from "../hooks/useBroadcast";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -41,24 +42,6 @@ function mapError(err) {
   }
 }
 
-const LS = {
-  get(key, fallback) {
-    try {
-      const v = localStorage.getItem(key);
-      return v ? JSON.parse(v) : fallback;
-    } catch {
-      return fallback;
-    }
-  },
-  set(key, val) {
-    try {
-      localStorage.setItem(key, JSON.stringify(val));
-    } catch (err) {
-      console.warn("[TranslationContext] could not persist preference", key, err);
-    }
-  },
-};
-
 export function TranslationProvider({ children }) {
   const [status, setStatus] = useState(INITIAL_STATUS);
   const [sourceText, setSourceText] = useState("");
@@ -74,23 +57,18 @@ export function TranslationProvider({ children }) {
   const [devices, setDevices] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState("");
   const [outputDevices, setOutputDevices] = useState([]);
-  const [selectedOutput, setSelectedOutput] = useState(() => LS.get("tbl-output", ""));
-  const [ambientMode, setAmbientMode] = useState(() => LS.get("tbl-ambient", false));
+  const [selectedOutput, setSelectedOutput] = usePersistentState("tbl-output", "");
+  const [ambientMode, setAmbientMode] = usePersistentState("tbl-ambient", false);
   const [captureSource, setCaptureSource] = useState("mic"); // 'mic' | 'display'
-  const [sourceLang, setSourceLang] = useState(() => LS.get("tbl-source", "auto"));
-  const [targetLang, setTargetLang] = useState(() => LS.get("tbl-target", "en"));
-  const [modeKey, setModeKey] = useState(() => LS.get("tbl-mode", "GENERAL"));
-  const [customInstructions, setCustomInstructions] = useState(() => LS.get("tbl-custom", ""));
-  const [profile, setProfile] = useState(() => LS.get("tbl-profile", EMPTY_PROFILE));
-  const [saveTranscripts, setSaveTranscripts] = useState(() => LS.get("tbl-save", false));
+  const [sourceLang, setSourceLang] = usePersistentState("tbl-source", "auto");
+  const [targetLang, setTargetLang] = usePersistentState("tbl-target", "en");
+  const [modeKey, setModeKey] = usePersistentState("tbl-mode", "GENERAL");
+  const [customInstructions, setCustomInstructions] = usePersistentState("tbl-custom", "");
+  const [profile, setProfile] = usePersistentState("tbl-profile", EMPTY_PROFILE);
+  const [saveTranscripts, setSaveTranscripts] = usePersistentState("tbl-save", false);
   const [level, setLevel] = useState({ level: 0, peak: 0 });
   const [testing, setTesting] = useState(false);
   const [metrics, setMetrics] = useState({ latencyMs: null, avgLatencyMs: null, instructionsApplied: false, pcState: "", iceState: "" });
-  const [eventInfo, setEventInfo] = useState(null);
-  const [listeners, setListeners] = useState(0);
-  const [broadcasting, setBroadcasting] = useState(false);
-  const [captionsToListeners, setCaptionsToListeners] = useState(() => LS.get("tbl-listener-captions", false));
-  const broadcasterRef = useRef(null);
 
   const engineRef = useRef(null);
   const audioRef = useRef(null);
@@ -120,20 +98,10 @@ export function TranslationProvider({ children }) {
     });
   }
 
-  // persist config
-  useEffect(() => LS.set("tbl-source", sourceLang), [sourceLang]);
-  useEffect(() => LS.set("tbl-target", targetLang), [targetLang]);
-  useEffect(() => LS.set("tbl-ambient", ambientMode), [ambientMode]);
-  useEffect(() => LS.set("tbl-output", selectedOutput), [selectedOutput]);
-
   const setOutputDevice = useCallback((id) => {
     setSelectedOutput(id);
     engineRef.current.setOutputDevice(id);
-  }, []);
-  useEffect(() => LS.set("tbl-mode", modeKey), [modeKey]);
-  useEffect(() => LS.set("tbl-custom", customInstructions), [customInstructions]);
-  useEffect(() => LS.set("tbl-profile", profile), [profile]);
-  useEffect(() => LS.set("tbl-save", saveTranscripts), [saveTranscripts]);
+  }, [setSelectedOutput]);
 
   const loadDevices = useCallback(async () => {
     try {
@@ -282,74 +250,7 @@ export function TranslationProvider({ children }) {
     setTesting(false);
   }, []);
 
-  useEffect(() => LS.set("tbl-listener-captions", captionsToListeners), [captionsToListeners]);
-
-  const createEvent = useCallback(async (fields = {}) => {
-    const res = await fetch(`${API}/events`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: fields.name || "Live Interpretation",
-        organization: fields.organization || profile.organization || "",
-        target_language: targetLang,
-        pin: fields.pin || null,
-        captions: captionsToListeners,
-      }),
-    });
-    if (!res.ok) throw new Error("Could not create event");
-    const info = await res.json();
-    setEventInfo(info);
-    return info;
-  }, [targetLang, captionsToListeners, profile.organization]);
-
-  const startEvent = useCallback(async (fields) => {
-    setError(null);
-    let ev = eventInfo;
-    if (!ev) ev = await createEvent(fields || {});
-    await start();
-    let stream = null;
-    for (let i = 0; i < 25; i++) {
-      stream = engineRef.current.audioEl?.srcObject;
-      if (stream) break;
-      await new Promise((r) => setTimeout(r, 200));
-    }
-    if (stream) {
-      try {
-        const b = new OperatorBroadcaster(`${WS_BASE}/api/ws/${ev.id}?role=operator`, { onCount: setListeners });
-        await b.start(stream);
-        broadcasterRef.current = b;
-        setBroadcasting(true);
-      } catch (e) {
-        setError("Broadcast could not start: " + e.message);
-      }
-    }
-    return ev;
-  }, [eventInfo, createEvent, start]);
-
-  const stopEvent = useCallback(() => {
-    if (broadcasterRef.current) { broadcasterRef.current.stop(); broadcasterRef.current = null; }
-    setBroadcasting(false);
-    setListeners(0);
-    stop();
-  }, [stop]);
-
-  const restartBroadcast = useCallback(async () => {
-    if (broadcasterRef.current) { broadcasterRef.current.stop(); broadcasterRef.current = null; }
-    setBroadcasting(false);
-    const stream = engineRef.current.audioEl?.srcObject;
-    if (stream && eventInfo) {
-      const b = new OperatorBroadcaster(`${WS_BASE}/api/ws/${eventInfo.id}?role=operator`, { onCount: setListeners });
-      await b.start(stream);
-      broadcasterRef.current = b;
-      setBroadcasting(true);
-    }
-  }, [eventInfo]);
-
-  useEffect(() => {
-    if (broadcasting && captionsToListeners && broadcasterRef.current) {
-      broadcasterRef.current.sendCaption(targetText);
-    }
-  }, [targetText, broadcasting, captionsToListeners]);
+  const broadcast = useBroadcast({ API, engineRef, targetLang, profile, start, stop, setError, targetText });
 
   const value = {
     status, sourceText, targetText, logs, rawEvents, error, active,
@@ -362,8 +263,7 @@ export function TranslationProvider({ children }) {
     profile, setProfile, saveTranscripts, setSaveTranscripts,
     level, testing, metrics,
     start, stop, restart, reset,
-    createEvent, startEvent, stopEvent, restartBroadcast,
-    eventInfo, listeners, broadcasting, captionsToListeners, setCaptionsToListeners,
+    ...broadcast,
     toggleTranslationMute, toggleInputMute, testInput, stopTest,
     clearError: () => setError(null),
     MODES,

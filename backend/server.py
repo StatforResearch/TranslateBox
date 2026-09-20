@@ -92,16 +92,9 @@ async def health():
     }
 
 
-@api_router.post("/realtime-session")
-async def create_realtime_session(req: SessionRequest, request: Request):
-    """Mint a short-lived OpenAI Realtime Translation client secret.
-
-    The permanent OPENAI_API_KEY never leaves the server. The browser only
-    receives the ephemeral `value` used to open a WebRTC translation call.
-    """
-    # Abuse controls (endpoint is unauthenticated by design for the operator prototype).
-    ip = _client_ip(request)
-    if _rate_limited(ip):
+def _enforce_session_abuse_controls(request: Request):
+    """Rate-limit and body-size guard for the unauthenticated session endpoint."""
+    if _rate_limited(_client_ip(request)):
         raise HTTPException(
             status_code=429,
             detail="Too many session requests. Please wait a moment and try again.",
@@ -110,21 +103,20 @@ async def create_realtime_session(req: SessionRequest, request: Request):
     if content_length and content_length.isdigit() and int(content_length) > MAX_BODY_BYTES:
         raise HTTPException(status_code=413, detail="Request body too large.")
 
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise HTTPException(
-            status_code=503,
-            detail="OPENAI_API_KEY is not configured on the server. Add it to backend/.env and restart the backend.",
-        )
 
-    target_language = (req.target_language or "en").lower()
-    if target_language not in SUPPORTED_OUTPUT_LANGUAGES:
+def _resolve_target_language(target_language: str) -> str:
+    """Validate the requested output language against the model's supported set."""
+    lang = (target_language or "en").lower()
+    if lang not in SUPPORTED_OUTPUT_LANGUAGES:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported target language '{target_language}'. Supported output languages: {sorted(SUPPORTED_OUTPUT_LANGUAGES)}",
+            detail=f"Unsupported target language '{lang}'. Supported output languages: {sorted(SUPPORTED_OUTPUT_LANGUAGES)}",
         )
+    return lang
 
-    session_config = {
+
+def _build_session_config(target_language: str) -> dict:
+    return {
         "session": {
             "model": REALTIME_MODEL,
             "audio": {
@@ -137,43 +129,61 @@ async def create_realtime_session(req: SessionRequest, request: Request):
         }
     }
 
+
+def _openai_headers(api_key: str) -> dict:
     # Bind the ephemeral secret to a stable, non-identifying operator hash.
     safety_id = hashlib.sha256(b"translatebox-live-operator").hexdigest()
-    headers = {
+    return {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
         "OpenAI-Safety-Identifier": safety_id,
     }
 
-    instructions = (req.instructions or "").strip()[:MAX_INSTRUCTIONS_LEN]
 
-    async def _mint(config):
+async def _mint_session(base_config: dict, instructions: str, headers: dict):
+    """POST to OpenAI, attaching custom instructions when possible.
+
+    gpt-realtime-translate may reject the `instructions` field, so we attempt it
+    then gracefully fall back to the proven base config. Returns (resp, applied).
+    """
+    async def _post(config):
         async with httpx.AsyncClient(timeout=20.0) as client:
             return await client.post(OPENAI_CLIENT_SECRETS_URL, headers=headers, json=config)
 
+    if not instructions:
+        return await _post(base_config), False
+
+    with_instr = {"session": {**base_config["session"], "instructions": instructions}}
+    resp = await _post(with_instr)
+    if resp.status_code < 400:
+        return resp, True
+    logger.warning("Instructions not accepted by model (%s); retrying without them.", resp.status_code)
+    return await _post(base_config), False
+
+
+@api_router.post("/realtime-session")
+async def create_realtime_session(req: SessionRequest, request: Request):
+    """Mint a short-lived OpenAI Realtime Translation client secret.
+
+    The permanent OPENAI_API_KEY never leaves the server. The browser only
+    receives the ephemeral `value` used to open a WebRTC translation call.
+    """
+    _enforce_session_abuse_controls(request)
+
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="OPENAI_API_KEY is not configured on the server. Add it to backend/.env and restart the backend.",
+        )
+
+    target_language = _resolve_target_language(req.target_language)
+    session_config = _build_session_config(target_language)
+    headers = _openai_headers(api_key)
+    instructions = (req.instructions or "").strip()[:MAX_INSTRUCTIONS_LEN]
+
     try:
-        instructions_applied = False
-        if instructions:
-            # gpt-realtime-translate may not accept custom instructions. Attempt
-            # to attach them, and gracefully fall back to the proven base config
-            # if OpenAI rejects the field, so the working flow is never broken.
-            with_instr = {
-                "session": {
-                    **session_config["session"],
-                    "instructions": instructions,
-                }
-            }
-            resp = await _mint(with_instr)
-            if resp.status_code < 400:
-                instructions_applied = True
-            else:
-                logger.warning(
-                    "Instructions not accepted by model (%s); retrying without them.",
-                    resp.status_code,
-                )
-                resp = await _mint(session_config)
-        else:
-            resp = await _mint(session_config)
+        resp, instructions_applied = await _mint_session(session_config, instructions, headers)
     except httpx.RequestError as exc:
         logger.error("Network error reaching OpenAI: %s", exc)
         raise HTTPException(status_code=502, detail=f"Failed to reach OpenAI: {exc}")
@@ -297,47 +307,46 @@ async def _broadcast_status(eid, live):
         room["listeners"].discard(d)
 
 
-@app.websocket("/api/ws/{eid}")
-async def ws_broadcast(websocket: WebSocket, eid: str, role: str = "listener", pin: str = None):
-    if eid not in EVENTS:
-        await websocket.accept()
-        await websocket.close(code=4404)
-        return
-    room = _room(eid)
-    await websocket.accept()
-
-    if role == "operator":
-        room["operator"] = websocket
-        room["init"] = None
-        await _broadcast_status(eid, True)
-        await _notify_operator(eid)
+async def _fanout_bytes(room, data: bytes):
+    for l in list(room["listeners"]):
         try:
-            while True:
-                msg = await websocket.receive()
-                if msg.get("bytes") is not None:
-                    data = msg["bytes"]
-                    if room["init"] is None:
-                        room["init"] = data  # cache init/header segment for late joiners
-                    for l in list(room["listeners"]):
-                        try:
-                            await l.send_bytes(data)
-                        except Exception:
-                            room["listeners"].discard(l)
-                elif msg.get("text") is not None:
-                    for l in list(room["listeners"]):
-                        try:
-                            await l.send_text(msg["text"])
-                        except Exception:
-                            room["listeners"].discard(l)
-        except WebSocketDisconnect:
-            pass
-        finally:
-            room["operator"] = None
-            room["init"] = None
-            await _broadcast_status(eid, False)
-        return
+            await l.send_bytes(data)
+        except Exception:
+            room["listeners"].discard(l)
 
-    # listener
+
+async def _fanout_text(room, text: str):
+    for l in list(room["listeners"]):
+        try:
+            await l.send_text(text)
+        except Exception:
+            room["listeners"].discard(l)
+
+
+async def _run_operator(websocket: WebSocket, eid: str, room):
+    room["operator"] = websocket
+    room["init"] = None
+    await _broadcast_status(eid, True)
+    await _notify_operator(eid)
+    try:
+        while True:
+            msg = await websocket.receive()
+            if msg.get("bytes") is not None:
+                data = msg["bytes"]
+                if room["init"] is None:
+                    room["init"] = data  # cache init/header segment for late joiners
+                await _fanout_bytes(room, data)
+            elif msg.get("text") is not None:
+                await _fanout_text(room, msg["text"])
+    except WebSocketDisconnect:
+        pass
+    finally:
+        room["operator"] = None
+        room["init"] = None
+        await _broadcast_status(eid, False)
+
+
+async def _run_listener(websocket: WebSocket, eid: str, room, pin):
     if not _check_pin(eid, pin):
         await websocket.close(code=4401)
         return
@@ -357,6 +366,20 @@ async def ws_broadcast(websocket: WebSocket, eid: str, role: str = "listener", p
     finally:
         room["listeners"].discard(websocket)
         await _notify_operator(eid)
+
+
+@app.websocket("/api/ws/{eid}")
+async def ws_broadcast(websocket: WebSocket, eid: str, role: str = "listener", pin: str = None):
+    if eid not in EVENTS:
+        await websocket.accept()
+        await websocket.close(code=4404)
+        return
+    room = _room(eid)
+    await websocket.accept()
+    if role == "operator":
+        await _run_operator(websocket, eid, room)
+    else:
+        await _run_listener(websocket, eid, room, pin)
 
 
 app.include_router(api_router)
