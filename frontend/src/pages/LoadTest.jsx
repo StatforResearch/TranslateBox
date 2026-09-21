@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { WS_BASE } from "../lib/broadcast";
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+import { API, operatorFetch } from "../lib/api";
 
 export default function LoadTest() {
   const [eventId, setEventId] = useState("");
@@ -15,7 +15,7 @@ export default function LoadTest() {
 
   useEffect(() => {
     const t = setInterval(() => {
-      fetch(`${API}/stats`).then((r) => r.json()).then(setStats).catch((err) => console.debug("[loadtest] stats poll failed", err));
+      operatorFetch(`${API}/stats`).then((r) => r.json()).then(setStats).catch((err) => console.debug("[loadtest] stats poll failed", err));
     }, 2000);
     return () => { clearInterval(t); stopAll(); };
     // eslint-disable-next-line
@@ -24,7 +24,7 @@ export default function LoadTest() {
   const addOne = () => {
     const ws = new WebSocket(`${WS_BASE}/api/ws/${eventId}?role=listener`);
     ws.binaryType = "arraybuffer";
-    ws.onopen = () => setConnected((c) => c + 1);
+    ws.onopen = () => { ws.send(JSON.stringify({type: "auth"})); setConnected((c) => c + 1); };
     ws.onmessage = (e) => { if (typeof e.data !== "string") setBytes((b) => b + e.data.byteLength); };
     ws.onerror = () => setErrors((x) => x + 1);
     ws.onclose = () => {

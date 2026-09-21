@@ -1,3 +1,4 @@
+import { operatorHeaders } from "./api";
 const OPENAI_CALLS_URL = "https://api.openai.com/v1/realtime/translations/calls";
 const MAX_RECONNECTS = 5;
 
@@ -13,6 +14,8 @@ export class TranslationEngine {
     this.localStream = null;
     this.audioEl = null;
     this.active = false;
+    this._generation = 0;
+    this._inputMuted = false;
     this.deviceId = null;
     this.captureSource = "mic";
     this.ambient = false;
@@ -87,6 +90,7 @@ export class TranslationEngine {
 
   // ---- audio capture ----
   async _capture(deviceId, source, ambient) {
+    if (!navigator.mediaDevices?.getUserMedia) throw new Error("Microphone access requires HTTPS or localhost and a supported browser.");
     if (source === "display") {
       let stream;
       try {
@@ -202,7 +206,7 @@ export class TranslationEngine {
     this.log("info", "Requesting ephemeral session from backend");
     const res = await fetch(`${this.apiBase}/realtime-session`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...operatorHeaders() },
       body: JSON.stringify({ target_language: this.targetLanguage, instructions: this.instructions }),
     });
     if (!res.ok) {
@@ -210,7 +214,7 @@ export class TranslationEngine {
       try {
         detail = (await res.json()).detail;
       } catch {
-        detail = await res.text();
+        detail = "Session request failed";
       }
       throw new Error(`SESSION_TOKEN:${res.status}:${detail}`);
     }
@@ -227,6 +231,7 @@ export class TranslationEngine {
 
   async start({ deviceId, source = "mic", targetLanguage = "en", instructions = "", ambient = false } = {}) {
     if (this.active) return;
+    const generation = ++this._generation;
     this.active = true;
     this.deviceId = deviceId;
     this.captureSource = source;
@@ -238,6 +243,7 @@ export class TranslationEngine {
     try {
       await this._connect();
     } catch (err) {
+      if (generation !== this._generation) return;
       this.active = false;
       this._teardown();
       throw err;
@@ -245,14 +251,19 @@ export class TranslationEngine {
   }
 
   async _connect() {
+    const generation = this._generation;
+    const check = () => { if (!this.active || generation !== this._generation) throw new Error("Session cancelled"); };
     await this.stopTest();
     const stream = await this._capture(this.deviceId, this.captureSource, this.ambient);
+    if (!this.active || generation !== this._generation) { stream.getTracks().forEach(t => t.stop()); return; }
     this.localStream = stream;
+    stream.getAudioTracks().forEach(t => { t.enabled = !this._inputMuted; });
     this.setStatus({ mic: "active" });
     this.log("info", "Input stream acquired", { deviceId: this.deviceId, source: this.captureSource, ambient: this.ambient });
     this._startMeter(stream);
 
     const ephemeral = await this._getEphemeral();
+    check();
 
     const pc = new RTCPeerConnection();
     this.pc = pc;
@@ -301,6 +312,7 @@ export class TranslationEngine {
     dc.onmessage = (e) => this._onEvent(e.data);
 
     const offer = await pc.createOffer();
+    check();
     await pc.setLocalDescription(offer);
     this.log("debug", "SDP offer created, posting to OpenAI");
 
@@ -310,15 +322,16 @@ export class TranslationEngine {
       body: offer.sdp,
     });
     if (!sdpRes.ok) {
-      const t = await sdpRes.text();
+      await sdpRes.text();
       // Do NOT surface the raw upstream body to the UI (info disclosure). Log
-      // full details to the console for debugging; propagate only the status.
-      console.error("[OpenAI /calls] error", sdpRes.status, t);
+      // only the status; never retain the upstream body in browser logs.
+      console.error("[OpenAI /calls] error", sdpRes.status);
       this.log("error", "OpenAI /calls error " + sdpRes.status, { status: sdpRes.status });
       this.setStatus({ openai: "error" });
       throw new Error(`OPENAI_CONNECT:${sdpRes.status}:`);
     }
     const answer = await sdpRes.text();
+    check();
     await pc.setRemoteDescription({ type: "answer", sdp: answer });
     this.log("info", "SDP answer applied — establishing stream");
     this.setStatus({ openai: "connected" });
@@ -383,10 +396,13 @@ export class TranslationEngine {
   async _handleDrop() {
     if (!this.active || this._reconnecting) return;
     if (this.reconnectAttempts >= MAX_RECONNECTS) {
+      this.active = false;
+      this._teardown();
       this.setStatus({ openai: "error", network: "offline" });
       this.h.onError?.("Connection lost. Automatic reconnection attempts exhausted. Press RESTART to retry.");
       return;
     }
+    const generation = this._generation;
     this._reconnecting = true;
     this.reconnectAttempts += 1;
     const n = this.reconnectAttempts;
@@ -394,9 +410,10 @@ export class TranslationEngine {
     this.h.onMetrics?.({ reconnectCount: n });
     this.log("warn", `Connection dropped — reconnect attempt ${n}/${MAX_RECONNECTS}`);
     this.h.onError?.(`RECONNECTING… (${n}/${MAX_RECONNECTS})`);
+    this._stopMeter();
     this._teardownPc();
     await new Promise((r) => setTimeout(r, Math.min(1200 * n, 5000)));
-    if (!this.active) {
+    if (!this.active || generation !== this._generation) {
       this._reconnecting = false;
       return;
     }
@@ -405,6 +422,7 @@ export class TranslationEngine {
       this.h.onError?.(null);
       this.log("info", "Reconnection successful — LIVE");
     } catch (e) {
+      if (generation !== this._generation) return;
       this.log("error", "Reconnect failed: " + e.message);
       this._reconnecting = false;
       this._handleDrop();
@@ -414,6 +432,7 @@ export class TranslationEngine {
   }
 
   _teardownPc() {
+    if (this.audioEl) this.audioEl.srcObject = null;
     if (this.dc) {
       try {
         this.dc.close();
@@ -422,6 +441,8 @@ export class TranslationEngine {
     }
     if (this.pc) {
       try {
+        this.pc.onconnectionstatechange = null;
+        this.pc.ontrack = null;
         this.pc.close();
       } catch { /* already closed */ }
       this.pc = null;
@@ -445,6 +466,7 @@ export class TranslationEngine {
   }
 
   setInputMuted(muted) {
+    this._inputMuted = muted;
     if (this.localStream) {
       this.localStream.getAudioTracks().forEach((t) => (t.enabled = !muted));
     }
@@ -452,6 +474,7 @@ export class TranslationEngine {
   }
 
   stop() {
+    this._generation += 1;
     this.active = false;
     this._reconnecting = false;
     this._resetSegment();

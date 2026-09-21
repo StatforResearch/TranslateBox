@@ -1,61 +1,53 @@
-// Operator-side broadcaster: captures the ONE translated audio stream and
-// publishes it (Opus/WebM) to the backend hub over a single WebSocket.
-// Listeners receive the fan-out from the backend — they never touch OpenAI.
-export class OperatorBroadcaster {
-  constructor(wsUrl, { onCount, onStatus } = {}) {
-    this.wsUrl = wsUrl;
-    this.onCount = onCount || (() => {});
-    this.onStatus = onStatus || (() => {});
-    this.ws = null;
-    this.recorder = null;
-  }
+export { WS_BASE } from './api';
 
+export class OperatorBroadcaster {
+  constructor(wsUrl, { token, onCount = () => {}, onStatus = () => {} } = {}) {
+    Object.assign(this, { wsUrl, token, onCount, onStatus, ws: null, recorder: null });
+  }
   start(stream) {
     return new Promise((resolve, reject) => {
-      this.ws = new WebSocket(this.wsUrl);
-      this.ws.binaryType = "arraybuffer";
-      this.ws.onopen = () => {
-        try {
-          const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-            ? "audio/webm;codecs=opus"
-            : "audio/webm";
-          this.recorder = new MediaRecorder(stream, { mimeType: mime, audioBitsPerSecond: 48000 });
-          this.recorder.ondataavailable = async (e) => {
-            if (e.data && e.data.size > 0 && this.ws && this.ws.readyState === 1) {
-              this.ws.send(await e.data.arrayBuffer());
-            }
-          };
-          this.recorder.start(250); // 250ms chunks -> low latency
-          resolve();
-        } catch (err) {
-          reject(err);
+      if (!globalThis.MediaRecorder?.isTypeSupported('audio/webm;codecs=opus')) {
+        reject(new Error('Broadcast requires a browser with WebM/Opus recording support (Chrome or Edge).'));
+        return;
+      }
+      const ws = this.ws = new WebSocket(this.wsUrl);
+      let ready = false;
+      const fail = (message) => { clearTimeout(timer); this.stop(); reject(new Error(message)); };
+      const timer = setTimeout(() => fail('Broadcast connection timed out'), 10000);
+      ws.onopen = () => ws.send(JSON.stringify({ type: 'auth', token: this.token }));
+      ws.onmessage = ({ data }) => {
+        let message;
+        try { message = JSON.parse(data); } catch { return; }
+        if (message.type === 'ready' && !ready) {
+          try {
+            this.recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 48000 });
+            this.recorder.ondataavailable = ({ data: chunk }) => {
+              if (chunk.size && ws.readyState === 1) {
+                if (ws.bufferedAmount > 1024 * 1024) { this.stop(); this.onStatus({live: false, error: 'Broadcast connection too slow'}); return; }
+                ws.send(chunk);
+              }
+            };
+            this.recorder.start(250);
+            ready = true; clearTimeout(timer); resolve();
+          } catch (error) { fail(error.message); }
         }
+        if (message.type === 'listeners') this.onCount(message.count);
       };
-      this.ws.onmessage = (ev) => {
-        try {
-          const m = JSON.parse(ev.data);
-          if (m.type === "listeners") this.onCount(m.count);
-          if (m.type === "status") this.onStatus(m);
-        } catch (err) {
-          console.debug("[broadcast] ignoring non-JSON control message", err);
-        }
+      ws.onerror = () => fail('Broadcast connection failed');
+      ws.onclose = ({ code }) => {
+        clearTimeout(timer);
+        this.stop();
+        this.onStatus({ live: false });
+        if (!ready) reject(new Error(`Broadcast rejected (${code})`));
       };
-      this.ws.onerror = () => reject(new Error("Broadcast WebSocket error"));
     });
   }
-
   sendCaption(text) {
-    if (this.ws && this.ws.readyState === 1) {
-      this.ws.send(JSON.stringify({ type: "caption", text }));
-    }
+    if (this.ws?.readyState === 1) this.ws.send(JSON.stringify({ type: 'caption', text: text.slice(-6000) }));
   }
-
   stop() {
-    try { this.recorder && this.recorder.state !== "inactive" && this.recorder.stop(); } catch (err) { console.debug("[broadcast] recorder stop cleanup", err); }
-    try { this.ws && this.ws.close(); } catch (err) { console.debug("[broadcast] ws close cleanup", err); }
+    if (this.recorder?.state !== 'inactive') this.recorder?.stop();
     this.recorder = null;
-    this.ws = null;
+    if (this.ws) { this.ws.onclose = null; this.ws.close(); this.ws = null; }
   }
 }
-
-export const WS_BASE = (process.env.REACT_APP_BACKEND_URL || "").replace(/^http/, "ws");

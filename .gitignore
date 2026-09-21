@@ -94,3 +94,10 @@ android-sdk/
 credentials.json
 *.key
 .credentials
+
+# Keep reproducible deployment examples and omit local artifacts.
+!.env.example
+!**/.env.example
+**/dist/
+**/build/
+.pytest_cache/

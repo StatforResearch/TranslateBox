@@ -5,8 +5,7 @@ import { getTarget } from "../lib/languages";
 import { usePersistentState } from "../hooks/usePersistentState";
 import { useBroadcast } from "../hooks/useBroadcast";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+import { API } from "../lib/api";
 
 const Ctx = createContext(null);
 export const useTranslationSession = () => useContext(Ctx);
@@ -145,6 +144,7 @@ export function TranslationProvider({ children }) {
   }, [loadDevices, selectedDevice]);
 
   const startTimer = () => {
+    clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       setDuration((d) => d + 1);
       setStatus((s) => {
@@ -159,6 +159,7 @@ export function TranslationProvider({ children }) {
   };
 
   const start = useCallback(async () => {
+    if (engineRef.current.active) return true;
     setError(null);
     setSourceText("");
     setTargetText("");
@@ -175,12 +176,15 @@ export function TranslationProvider({ children }) {
         instructions,
         ambient: ambientMode,
       });
+      if (!engineRef.current.active) return false;
       setActive(true);
       startTimer();
       loadDevices();
+      return true;
     } catch (e) {
       setError(mapError(e));
       setActive(false);
+      return false;
     }
   }, [selectedDevice, captureSource, targetLang, modeKey, customInstructions, profile, ambientMode, loadDevices]);
 
@@ -250,7 +254,13 @@ export function TranslationProvider({ children }) {
     setTesting(false);
   }, []);
 
-  const broadcast = useBroadcast({ API, engineRef, targetLang, profile, start, stop, setError, targetText });
+  const broadcast = useBroadcast({ API, engineRef, targetLang, profile, start, stop, setError, targetText, active });
+
+  useEffect(() => () => {
+    engineRef.current.stop();
+    engineRef.current.stopTest();
+    clearInterval(timerRef.current);
+  }, []);
 
   const value = {
     status, sourceText, targetText, logs, rawEvents, error, active,

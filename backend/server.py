@@ -1,16 +1,20 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Request
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 import os
+import asyncio
+import json
+import secrets
 import time
 import logging
 import hashlib
 from collections import defaultdict, deque
 from pathlib import Path
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import httpx
+import anyio
 
 
 ROOT_DIR = Path(__file__).parent
@@ -26,7 +30,7 @@ SUPPORTED_OUTPUT_LANGUAGES = {
     "en", "es", "pt", "fr", "ja", "ru", "zh", "de", "ko", "hi", "id", "vi", "it",
 }
 
-# Abuse controls for the (unauthenticated by design) session-minting endpoint.
+# Abuse controls for operator sessions and public listener connections.
 MAX_INSTRUCTIONS_LEN = int(os.environ.get("MAX_INSTRUCTIONS_LEN", "6000"))
 MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", "32768"))  # 32 KB
 RATE_LIMIT_MAX = int(os.environ.get("SESSION_RATE_LIMIT_MAX", "20"))
@@ -35,23 +39,38 @@ _rate_buckets = defaultdict(deque)
 
 
 def _client_ip(request: Request) -> str:
-    fwd = request.headers.get("x-forwarded-for")
-    if fwd:
-        return fwd.split(",")[0].strip()
+    # Only Uvicorn may resolve forwarding headers, from trusted proxies.
     return request.client.host if request.client else "unknown"
 
 
-def _rate_limited(ip: str) -> bool:
+def _rate_limited(ip: str, maximum: int = RATE_LIMIT_MAX) -> bool:
     now = time.monotonic()
+    for key, entries in list(_rate_buckets.items()):
+        if not entries or now - entries[-1] > RATE_LIMIT_WINDOW:
+            del _rate_buckets[key]
+    if ip not in _rate_buckets and len(_rate_buckets) >= 10000:
+        return True
     bucket = _rate_buckets[ip]
     while bucket and now - bucket[0] > RATE_LIMIT_WINDOW:
         bucket.popleft()
-    if len(bucket) >= RATE_LIMIT_MAX:
+    if len(bucket) >= maximum:
         return True
     bucket.append(now)
     return False
 
-app = FastAPI(title="TranslateBox Live API")
+app = FastAPI(title="TranslateBox Live API", docs_url=None, redoc_url=None)
+
+
+def require_operator(request: Request):
+    if _rate_limited("auth:" + _client_ip(request), 120):
+        raise HTTPException(429, "Too many requests. Try again shortly.")
+    expected = os.environ.get("OPERATOR_TOKEN", "")
+    if len(expected) < 32:
+        raise HTTPException(503, "Operator access is not configured on the server.")
+    supplied = request.headers.get("authorization", "")
+    if not secrets.compare_digest(supplied.encode(), ("Bearer " + expected).encode()):
+        raise HTTPException(401, "Operator access required.")
+
 api_router = APIRouter(prefix="/api")
 
 logging.basicConfig(
@@ -73,14 +92,48 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 
+class BodyLimitMiddleware:
+    """Count actual bytes before FastAPI parses JSON, including chunked bodies."""
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope["method"] not in {"POST", "PUT", "PATCH"}:
+            return await self.app(scope, receive, send)
+        chunks, size = [], 0
+        while True:
+            message = await receive()
+            if message["type"] == "http.disconnect":
+                return
+            size += len(message.get("body", b""))
+            if size > MAX_BODY_BYTES:
+                return await JSONResponse({"detail": "Request body too large."}, 413)(scope, receive, send)
+            chunks.append(message.get("body", b""))
+            if not message.get("more_body", False):
+                break
+        delivered = False
+        async def replay():
+            nonlocal delivered
+            if delivered:
+                return await receive()
+            delivered = True
+            return {"type": "http.request", "body": b"".join(chunks), "more_body": False}
+        await self.app(scope, replay, send)
+
+
 class SessionRequest(BaseModel):
-    target_language: str = "en"
-    instructions: str | None = None
+    target_language: str = Field(default="en", max_length=10)
+    instructions: str | None = Field(default=None, max_length=MAX_INSTRUCTIONS_LEN)
 
 
 @api_router.get("/")
 async def root():
     return {"message": "TranslateBox Live API", "status": "ok"}
+
+
+@api_router.get("/operator", dependencies=[Depends(require_operator)])
+async def operator_access():
+    return {"status": "ok"}
 
 
 @api_router.get("/health")
@@ -93,7 +146,7 @@ async def health():
 
 
 def _enforce_session_abuse_controls(request: Request):
-    """Rate-limit and body-size guard for the unauthenticated session endpoint."""
+    """Additional session-minting rate limit."""
     if _rate_limited(_client_ip(request)):
         raise HTTPException(
             status_code=429,
@@ -157,11 +210,13 @@ async def _mint_session(base_config: dict, instructions: str, headers: dict):
     resp = await _post(with_instr)
     if resp.status_code < 400:
         return resp, True
+    if resp.status_code not in (400, 422):
+        return resp, False
     logger.warning("Instructions not accepted by model (%s); retrying without them.", resp.status_code)
     return await _post(base_config), False
 
 
-@api_router.post("/realtime-session")
+@api_router.post("/realtime-session", dependencies=[Depends(require_operator)])
 async def create_realtime_session(req: SessionRequest, request: Request):
     """Mint a short-lived OpenAI Realtime Translation client secret.
 
@@ -174,7 +229,7 @@ async def create_realtime_session(req: SessionRequest, request: Request):
     if not api_key:
         raise HTTPException(
             status_code=503,
-            detail="OPENAI_API_KEY is not configured on the server. Add it to backend/.env and restart the backend.",
+            detail="The translation service is not configured on the server.",
         )
 
     target_language = _resolve_target_language(req.target_language)
@@ -185,13 +240,12 @@ async def create_realtime_session(req: SessionRequest, request: Request):
     try:
         resp, instructions_applied = await _mint_session(session_config, instructions, headers)
     except httpx.RequestError as exc:
-        logger.error("Network error reaching OpenAI: %s", exc)
-        raise HTTPException(status_code=502, detail=f"Failed to reach OpenAI: {exc}")
+        logger.error("Network error reaching translation service: %s", type(exc).__name__)
+        raise HTTPException(status_code=502, detail="The translation service could not start a session. Try again shortly.")
 
     if resp.status_code >= 400:
-        # Log full upstream detail server-side; return a generic message to the client
-        # to avoid leaking upstream/internal information.
-        logger.error("OpenAI session error %s: %s", resp.status_code, resp.text)
+        # Log only status: upstream bodies may contain sensitive information.
+        logger.error("OpenAI session error %s", resp.status_code)
         status = resp.status_code if resp.status_code in (429, 401, 402, 403) else 502
         raise HTTPException(
             status_code=status,
@@ -202,18 +256,27 @@ async def create_realtime_session(req: SessionRequest, request: Request):
         "Minted ephemeral translation session (model=%s, target=%s, instructions_applied=%s)",
         REALTIME_MODEL, target_language, instructions_applied,
     )
-    payload = resp.json()
-    payload["instructions_applied"] = instructions_applied
-    return JSONResponse(content=payload)
+    try:
+        data = resp.json()
+        value = data.get("value") or data.get("client_secret", {}).get("value")
+        if not isinstance(value, str) or not value.startswith("ek_"):
+            raise ValueError("Invalid client secret")
+    except (ValueError, AttributeError, TypeError):
+        raise HTTPException(502, "Invalid translation service response. Try again shortly.")
+    return JSONResponse(content={
+        "value": value, "expires_at": data.get("expires_at"),
+        "instructions_applied": instructions_applied,
+    }, headers={"Cache-Control": "no-store"})
 
 
 # ==========================================================================
 # V1 — Multi-listener broadcast (ONE OpenAI session -> many listeners)
 # ==========================================================================
-import secrets
 from fastapi import WebSocket, WebSocketDisconnect
 
 MAX_LISTENERS = int(os.environ.get("MAX_LISTENERS", "30"))
+MAX_EVENTS = int(os.environ.get("MAX_EVENTS", "100"))
+EVENT_TTL = int(os.environ.get("EVENT_TTL_SECONDS", "86400"))
 EVENTS = {}   # event_id -> {name, organization, target, pin_hash, captions, created}
 ROOMS = {}    # event_id -> {"operator": ws|None, "listeners": set(), "init": bytes|None}
 
@@ -223,27 +286,41 @@ def _room(eid):
 
 
 class EventCreate(BaseModel):
-    name: str = "Live Interpretation"
-    organization: str = ""
-    target_language: str = "en"
-    pin: str | None = None
+    name: str = Field(default="Live Interpretation", max_length=200)
+    organization: str = Field(default="", max_length=200)
+    target_language: str = Field(default="en", max_length=10)
+    pin: str | None = Field(default=None, max_length=64)
     captions: bool = False
 
 
-@api_router.post("/events")
+def _prune_events():
+    for eid, event in list(EVENTS.items()):
+        room = ROOMS.get(eid, {})
+        if time.time() - event["created"] > EVENT_TTL and not room.get("operator") and not room.get("listeners"):
+            EVENTS.pop(eid, None)
+            ROOMS.pop(eid, None)
+
+
+@api_router.post("/events", dependencies=[Depends(require_operator)])
 async def create_event(body: EventCreate):
-    eid = secrets.token_urlsafe(6)
+    _prune_events()
+    if len(EVENTS) >= MAX_EVENTS:
+        raise HTTPException(429, "Event capacity reached. Try again later.")
+    target = _resolve_target_language(body.target_language)
+    eid = secrets.token_urlsafe(12)
+    token = secrets.token_urlsafe(32)
     EVENTS[eid] = {
         "name": body.name or "Live Interpretation",
         "organization": body.organization or "",
-        "target": (body.target_language or "en").lower(),
+        "target": target,
+        "operator_token": token,
         "pin_hash": hashlib.sha256(body.pin.encode()).hexdigest() if body.pin else None,
         "captions": bool(body.captions),
         "created": time.time(),
     }
     _room(eid)
     logger.info("Event created %s", eid)
-    return {"id": eid, "path": f"/e/{eid}", **_public_event(eid)}
+    return JSONResponse({"id": eid, "path": f"/e/{eid}", "operator_token": token, **_public_event(eid)}, headers={"Cache-Control": "no-store"})
 
 
 def _public_event(eid):
@@ -255,11 +332,13 @@ def _public_event(eid):
         "name": ev["name"], "organization": ev["organization"], "target": ev["target"],
         "captions": ev["captions"], "pin_protected": ev["pin_hash"] is not None,
         "live": bool(room.get("operator")), "listeners": len(room.get("listeners", [])),
+        "max_listeners": MAX_LISTENERS,
     }
 
 
 @api_router.get("/events/{eid}")
 async def get_event(eid: str):
+    _prune_events()
     info = _public_event(eid)
     if not info:
         raise HTTPException(status_code=404, detail="Event not found")
@@ -273,13 +352,13 @@ def _check_pin(eid, pin):
     return pin is not None and hashlib.sha256(pin.encode()).hexdigest() == ev["pin_hash"]
 
 
-@api_router.get("/stats")
+@api_router.get("/stats", dependencies=[Depends(require_operator)])
 async def stats():
     import psutil
     return {
-        "cpu_percent": psutil.cpu_percent(interval=0.1),
+        "cpu_percent": psutil.cpu_percent(interval=None),
         "ram_percent": psutil.virtual_memory().percent,
-        "openai_sessions": 1 if any(r.get("operator") for r in ROOMS.values()) else 0,
+        "openai_sessions": sum(bool(r.get("operator")) for r in ROOMS.values()),
         "total_listeners": sum(len(r["listeners"]) for r in ROOMS.values()),
         "events": [{"id": eid, "listeners": len(r["listeners"]), "live": bool(r["operator"])} for eid, r in ROOMS.items()],
         "max_listeners": MAX_LISTENERS,
@@ -290,60 +369,62 @@ async def _notify_operator(eid):
     room = _room(eid)
     if room["operator"]:
         try:
-            await room["operator"].send_json({"type": "listeners", "count": len(room["listeners"])})
+            await asyncio.wait_for(room["operator"].send_json({"type": "listeners", "count": len(room["listeners"])}), timeout=2)
         except Exception:
             pass
 
 
 async def _broadcast_status(eid, live):
     room = _room(eid)
-    dead = []
-    for l in list(room["listeners"]):
+    await _fanout(room, "send_json", {"type": "status", "live": live})
+
+async def _fanout(room, method, data):
+    async def deliver(listener):
         try:
-            await l.send_json({"type": "status", "live": live})
+            await asyncio.wait_for(getattr(listener, method)(data), timeout=2)
         except Exception:
-            dead.append(l)
-    for d in dead:
-        room["listeners"].discard(d)
-
-
-async def _fanout_bytes(room, data: bytes):
-    for l in list(room["listeners"]):
-        try:
-            await l.send_bytes(data)
-        except Exception:
-            room["listeners"].discard(l)
-
-
-async def _fanout_text(room, text: str):
-    for l in list(room["listeners"]):
-        try:
-            await l.send_text(text)
-        except Exception:
-            room["listeners"].discard(l)
+            room["listeners"].discard(listener)
+            try:
+                await asyncio.wait_for(listener.close(code=1013), timeout=1)
+            except Exception:
+                pass
+    await asyncio.gather(*(deliver(listener) for listener in list(room["listeners"])))
 
 
 async def _run_operator(websocket: WebSocket, eid: str, room):
     room["operator"] = websocket
     room["init"] = None
-    await _broadcast_status(eid, True)
-    await _notify_operator(eid)
     try:
+        await websocket.send_json({"type": "ready"})
+        await _broadcast_status(eid, True)
+        await _notify_operator(eid)
         while True:
             msg = await websocket.receive()
+            if msg["type"] == "websocket.disconnect":
+                break
             if msg.get("bytes") is not None:
                 data = msg["bytes"]
+                if len(data) > 262144:
+                    await websocket.close(code=1009)
+                    break
                 if room["init"] is None:
                     room["init"] = data  # cache init/header segment for late joiners
-                await _fanout_bytes(room, data)
+                await _fanout(room, "send_bytes", data)
             elif msg.get("text") is not None:
-                await _fanout_text(room, msg["text"])
+                try:
+                    caption = json.loads(msg["text"])
+                    if caption.get("type") == "caption" and isinstance(caption.get("text"), str):
+                        EVENTS[eid]["captions"] = True
+                        await _fanout(room, "send_json", {"type": "caption", "text": caption["text"][-6000:]})
+                except (ValueError, AttributeError):
+                    pass
     except WebSocketDisconnect:
         pass
     finally:
         room["operator"] = None
         room["init"] = None
-        await _broadcast_status(eid, False)
+        with anyio.CancelScope(shield=True):
+            await _broadcast_status(eid, False)
 
 
 async def _run_listener(websocket: WebSocket, eid: str, room, pin):
@@ -360,7 +441,9 @@ async def _run_listener(websocket: WebSocket, eid: str, room, pin):
         if room["init"]:
             await websocket.send_bytes(room["init"])
         while True:
-            await websocket.receive_text()  # keepalive / ignore
+            message = await websocket.receive()
+            if message["type"] == "websocket.disconnect":
+                break
     except WebSocketDisconnect:
         pass
     finally:
@@ -369,26 +452,61 @@ async def _run_listener(websocket: WebSocket, eid: str, room, pin):
 
 
 @app.websocket("/api/ws/{eid}")
-async def ws_broadcast(websocket: WebSocket, eid: str, role: str = "listener", pin: str = None):
+async def ws_broadcast(websocket: WebSocket, eid: str, role: str = "listener"):
+    _prune_events()
     if eid not in EVENTS:
         await websocket.accept()
         await websocket.close(code=4404)
         return
-    room = _room(eid)
     await websocket.accept()
+    origin = websocket.headers.get("origin")
+    if origin and origin not in _cors_origins:
+        await websocket.close(code=4403)
+        return
+    if _rate_limited("ws:" + _client_ip(websocket), 120):
+        await websocket.close(code=4429)
+        return
+    room = _room(eid)
+    try:
+        auth = await asyncio.wait_for(websocket.receive_json(), timeout=10)
+        if not isinstance(auth, dict):
+            raise ValueError("Invalid authentication")
+    except WebSocketDisconnect:
+        return
+    except (asyncio.TimeoutError, ValueError, KeyError):
+        await websocket.close(code=4401)
+        return
+    if eid not in EVENTS:
+        await websocket.close(code=4404)
+        return
     if role == "operator":
+        token = auth.get("token", "")
+        if not isinstance(token, str) or not secrets.compare_digest(token.encode(), EVENTS[eid]["operator_token"].encode()):
+            await websocket.close(code=4401)
+            return
+        if room["operator"] is not None:
+            await websocket.close(code=4409)
+            return
+        # Reserve before any await to prevent simultaneous operator takeover.
+        room["operator"] = websocket
         await _run_operator(websocket, eid, room)
-    else:
+    elif role == "listener":
+        pin = auth.get("pin")
+        if pin is not None and not isinstance(pin, str):
+            await websocket.close(code=4401)
+            return
         await _run_listener(websocket, eid, room, pin)
+    else:
+        await websocket.close(code=4400)
 
 
 app.include_router(api_router)
 
+app.add_middleware(BodyLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
-# App uses no cookies/auth, so credentials are disabled (avoids the invalid
-# wildcard-origin + credentials combination flagged in the security audit).
-_cors_origins = os.environ.get('CORS_ORIGINS', '*').split(',')
+# Authentication uses explicit bearer headers, not browser cookies.
+_cors_origins = [o.strip().rstrip('/') for o in os.environ.get('CORS_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173').split(',') if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=False,

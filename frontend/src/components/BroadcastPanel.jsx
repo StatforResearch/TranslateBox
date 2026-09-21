@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import QRCode from "qrcode";
-import { Radio, Users, QrCode as QrIcon, Play, Square, Maximize2, X } from "lucide-react";
+import { Radio, Users, QrCode as QrIcon, Play, Square, X } from "lucide-react";
 import { useTranslationSession } from "../context/TranslationContext";
 
 export const BroadcastPanel = () => {
@@ -14,6 +14,7 @@ export const BroadcastPanel = () => {
   const [pin, setPin] = useState("");
   const [qr, setQr] = useState("");
   const [fs, setFs] = useState(false);
+  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const listenUrl = eventInfo ? `${window.location.origin}/e/${eventInfo.id}` : "";
 
@@ -21,16 +22,17 @@ export const BroadcastPanel = () => {
     if (listenUrl) QRCode.toDataURL(listenUrl, { width: 320, margin: 1 }).then(setQr).catch(() => {});
   }, [listenUrl]);
 
-  const doCreate = async () => { setBusy(true); try { await createEvent({ name, organization: org, pin }); } finally { setBusy(false); } };
-  const doStart = async () => { setBusy(true); try { await startEvent({ name, organization: org, pin }); } finally { setBusy(false); } };
+  const doCreate = async () => { setBusy(true); try { await createEvent({ name, organization: org, pin }); } catch (e) { setError(e.message); } finally { setBusy(false); } };
+  const doStart = async () => { setBusy(true); try { await startEvent({ name, organization: org, pin }); } catch (e) { setError(e.message); } finally { setBusy(false); } };
 
   return (
     <section className="rounded-2xl bg-white/80 dark:bg-[#121824]/70 backdrop-blur-xl border border-slate-200/70 dark:border-white/10 shadow-lg p-4 md:p-5 space-y-4" data-testid="broadcast-panel">
       <div className="flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-sm font-bold tracking-widest uppercase text-slate-700 dark:text-slate-200 font-mono"><Radio className="h-4 w-4 text-emerald-500" /> Broadcast · Multi-listener</h2>
-        <span className="flex items-center gap-1.5 text-sm font-mono font-bold" data-testid="listeners-count"><Users className="h-4 w-4 text-cyan-500" /> {listeners} / 30</span>
+        <span className="flex items-center gap-1.5 text-sm font-mono font-bold" data-testid="listeners-count"><Users className="h-4 w-4 text-cyan-500" /> {listeners} / {eventInfo?.max_listeners || 30}</span>
       </div>
 
+      {error && <p role="alert" className="text-rose-500">{error}</p>}
       {!eventInfo ? (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <input data-testid="event-name-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Event name" className="h-11 rounded-lg bg-slate-100 dark:bg-[#0F1623] border border-slate-300 dark:border-slate-700 px-3 text-sm dark:text-slate-100" />
@@ -50,12 +52,12 @@ export const BroadcastPanel = () => {
               ) : (
                 <button data-testid="stop-event-button" onClick={stopEvent} className="flex items-center gap-2 px-5 h-11 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold"><Square className="h-5 w-5 fill-white" /> STOP EVENT</button>
               )}
-              <button data-testid="restart-broadcast-button" onClick={restartBroadcast} disabled={!broadcasting} className="px-4 h-11 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-40 text-sm font-semibold">RESTART BROADCAST</button>
+              <button data-testid="restart-broadcast-button" onClick={() => restartBroadcast().catch(e => setError(e.message))} disabled={!broadcasting} className="px-4 h-11 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-40 text-sm font-semibold">RESTART BROADCAST</button>
               <button data-testid="qr-fullscreen-button" onClick={() => setFs(true)} className="px-4 h-11 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 text-sm font-semibold flex items-center gap-2"><QrIcon className="h-4 w-4" /> QR</button>
             </div>
             <label className="flex items-center gap-2 pt-1 cursor-pointer" data-testid="listener-captions-toggle">
               <input type="checkbox" checked={captionsToListeners} onChange={(e) => setCaptionsToListeners(e.target.checked)} className="h-4 w-4 accent-emerald-500" />
-              <span className="text-sm text-slate-600 dark:text-slate-300">Show English captions to listeners (default OFF)</span>
+              <span className="text-sm text-slate-600 dark:text-slate-300">Show translated captions to listeners (default OFF)</span>
             </label>
             <div className="flex gap-4 text-[11px] font-mono uppercase tracking-wider text-slate-400 pt-1">
               <span>Broadcast: <b className={broadcasting ? "text-emerald-500" : "text-slate-400"}>{broadcasting ? "LIVE" : "OFFLINE"}</b></span>

@@ -3,7 +3,8 @@ import { useParams } from "react-router-dom";
 import { Play, Pause, Volume2, Wifi, WifiOff, Headphones } from "lucide-react";
 import { WS_BASE } from "../lib/broadcast";
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+import { API } from "../lib/api";
+import { getTarget } from "../lib/languages";
 
 export default function Listener() {
   const { id } = useParams();
@@ -24,81 +25,144 @@ export default function Listener() {
   const queueRef = useRef([]);
   const retryRef = useRef(null);
 
+  const wantedRef = useRef(false);
+  const objectUrlRef = useRef(null);
+  const pausedRef = useRef(false);
+  const [paused, setPaused] = useState(false);
+
+  const release = useCallback(() => {
+    clearTimeout(retryRef.current);
+    if (wsRef.current) {
+      wsRef.current.onclose = null;
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.removeAttribute("src");
+      audioRef.current.load();
+    }
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    objectUrlRef.current = null;
+    sbRef.current = null;
+    msRef.current = null;
+    queueRef.current = [];
+  }, []);
+
+  const stop = useCallback(() => {
+    wantedRef.current = false;
+    release();
+    setListening(false);
+    setConn("idle");
+  }, [release]);
+
   useEffect(() => {
-    fetch(`${API}/events/${id}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
-      .then((d) => { setInfo(d); setNeedPin(d.pin_protected); setLive(d.live); })
-      .catch(() => setErr("Event not found."));
-    return () => stop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+    const controller = new AbortController();
+    setInfo(null); setErr("");
+    fetch(`${API}/events/${id}`, { signal: controller.signal })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error("Event not found.")))
+      .then(d => { setInfo(d); setNeedPin(d.pin_protected); setLive(d.live); })
+      .catch(e => { if (e.name !== "AbortError") setErr(e.message); });
+    return () => { controller.abort(); wantedRef.current = false; release(); };
+  }, [id, release]);
 
   const pump = useCallback(() => {
     const sb = sbRef.current;
+    const audio = audioRef.current;
     if (!sb || sb.updating || !queueRef.current.length) return;
-    try { sb.appendBuffer(queueRef.current.shift()); } catch {}
+    try {
+      if (sb.buffered.length && audio.currentTime - sb.buffered.start(0) > 30) {
+        sb.remove(sb.buffered.start(0), audio.currentTime - 10);
+        return;
+      }
+      sb.appendBuffer(queueRef.current[0]);
+      queueRef.current.shift();
+    } catch {
+      setErr("Audio playback failed. Stop and rejoin the event.");
+    }
   }, []);
 
-  const connect = useCallback(() => {
+  const connect = useCallback(function openStream() {
+    release();
+    if (!wantedRef.current) return;
+    if (!globalThis.MediaSource?.isTypeSupported('audio/webm;codecs=opus')) {
+      setErr("Your browser cannot play this broadcast. Use Chrome or Edge with WebM/Opus support.");
+      wantedRef.current = false; setListening(false); return;
+    }
     setConn("connecting");
     const ms = new MediaSource();
     msRef.current = ms;
-    audioRef.current.src = URL.createObjectURL(ms);
-    audioRef.current.volume = volume;
+    objectUrlRef.current = URL.createObjectURL(ms);
+    audioRef.current.src = objectUrlRef.current;
     ms.addEventListener("sourceopen", () => {
+      if (msRef.current !== ms) return;
       try {
         const sb = ms.addSourceBuffer('audio/webm;codecs=opus');
         sbRef.current = sb;
-        sb.addEventListener("updateend", pump);
-      } catch (e) { setErr("Your browser can't play this stream (try Chrome / Android)."); }
-    });
+        sb.addEventListener("updateend", () => {
+          if (sbRef.current !== sb) return;
+          // Late listeners start near the live edge, not at the cached header timestamp.
+          if (sb.buffered.length && audioRef.current) {
+            const end = sb.buffered.end(sb.buffered.length - 1);
+            if (end - audioRef.current.currentTime > 3) audioRef.current.currentTime = Math.max(0, end - 0.5);
+            if (!pausedRef.current) audioRef.current.play().catch(() => {});
+          }
+          pump();
+        });
+        sb.addEventListener("error", () => { setErr("Audio interrupted. Reconnecting…"); wsRef.current?.close(); });
+        pump();
+      } catch { setErr("Unable to initialize audio playback."); stop(); }
+    }, { once: true });
 
-    const url = `${WS_BASE}/api/ws/${id}?role=listener${pin ? `&pin=${encodeURIComponent(pin)}` : ""}`;
-    const ws = new WebSocket(url);
+    const ws = new WebSocket(`${WS_BASE}/api/ws/${id}?role=listener`);
     ws.binaryType = "arraybuffer";
     wsRef.current = ws;
-    ws.onopen = () => { setConn("connected"); };
-    ws.onmessage = (ev) => {
-      if (typeof ev.data === "string") {
+    let wasLive = false;
+    ws.onopen = () => { ws.send(JSON.stringify({type: "auth", pin: pin || null})); };
+    ws.onmessage = ({data}) => {
+      if (wsRef.current !== ws) return;
+      if (typeof data === "string") {
         try {
-          const m = JSON.parse(ev.data);
-          if (m.type === "status") setLive(m.live);
+          const m = JSON.parse(data);
+          if (m.type === "status") {
+            setConn("connected"); setLive(m.live);
+            // A new recorder has a new WebM header; reconnect to a fresh MediaSource.
+            if (wasLive && !m.live) { ws.close(); return; }
+            wasLive = m.live;
+          }
           if (m.type === "caption") setCaption(m.text || "");
         } catch {}
         return;
       }
-      queueRef.current.push(new Uint8Array(ev.data));
+      if (queueRef.current.length >= 120) { ws.close(); return; }
+      queueRef.current.push(new Uint8Array(data));
       pump();
-      audioRef.current && audioRef.current.paused && audioRef.current.play().catch(() => {});
     };
-    ws.onclose = (e) => {
-      setConn("disconnected");
-      if (e.code === 4401) { setErr("Incorrect PIN."); setNeedPin(true); setListening(false); return; }
-      if (e.code === 4429) { setErr("This event is full (30 listeners max)."); setListening(false); return; }
-      if (e.code === 4404) { setErr("Event not found."); setListening(false); return; }
-      if (listening) retryRef.current = setTimeout(connect, 1500); // auto-recover
+    ws.onclose = ({code}) => {
+      if (wsRef.current !== ws) return;
+      release(); setConn("disconnected");
+      const messages = {4401: "Incorrect PIN.", 4403: "This site is not allowed by the server.", 4429: "Event capacity or connection limit reached. Try again shortly.", 4404: "Event not found."};
+      if (messages[code]) {
+        setErr(messages[code]); if (code === 4401) setNeedPin(true);
+        wantedRef.current = false; setListening(false); return;
+      }
+      if (wantedRef.current) retryRef.current = setTimeout(openStream, 1500);
     };
     ws.onerror = () => setConn("disconnected");
-  }, [id, pin, volume, pump, listening]);
+  }, [id, pin, pump, release, stop]);
 
   const listen = () => {
-    setErr("");
-    setListening(true);
-    connect();
-  };
-
-  const stop = () => {
-    setListening(false);
-    clearTimeout(retryRef.current);
-    try { wsRef.current && wsRef.current.close(); } catch {}
-    try { audioRef.current && audioRef.current.pause(); } catch {}
+    setErr(""); setCaption(""); pausedRef.current = false; setPaused(false);
+    wantedRef.current = true; setListening(true); connect();
   };
 
   const togglePlay = () => {
     const a = audioRef.current;
     if (!a) return;
-    if (a.paused) a.play().catch(() => {});
-    else a.pause();
+    pausedRef.current = !pausedRef.current;
+    setPaused(pausedRef.current);
+    if (pausedRef.current) a.pause();
+    else a.play().catch(() => setErr("Press play again to enable audio."));
   };
 
   if (err && !info) {
@@ -113,9 +177,9 @@ export default function Listener() {
         {info?.organization && <p className="text-slate-400 mt-1">{info.organization}</p>}
 
         <div className="mt-8 mb-6 flex items-center justify-center gap-2 text-slate-300">
-          <span className="text-4xl">🇬🇧</span>
+          <span className="text-4xl">{getTarget(info?.target || "en").flag}</span>
           <span className="text-lg font-semibold uppercase tracking-wider">
-            {info?.target === "fr" ? "Français" : "English"}
+            {getTarget(info?.target || "en").native}
           </span>
         </div>
 
@@ -137,11 +201,11 @@ export default function Listener() {
         ) : (
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <button data-testid="listener-playpause" onClick={togglePlay} className="h-14 w-14 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white">
-                {audioRef.current && !audioRef.current.paused ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6 fill-white" />}
+              <button aria-label={paused ? "Play audio" : "Pause audio"} data-testid="listener-playpause" onClick={togglePlay} className="h-14 w-14 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white">
+                {!paused ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6 fill-white" />}
               </button>
               <Volume2 className="h-5 w-5 text-slate-400" />
-              <input type="range" min="0" max="1" step="0.05" value={volume}
+              <input aria-label="Volume" type="range" min="0" max="1" step="0.05" value={volume}
                 onChange={(e) => { setVolume(+e.target.value); if (audioRef.current) audioRef.current.volume = +e.target.value; }}
                 className="flex-1 accent-emerald-500" data-testid="listener-volume" />
               <button data-testid="listener-stop" onClick={stop} className="px-3 h-10 rounded-lg border border-white/15 text-slate-300 text-sm">Stop</button>
@@ -153,7 +217,7 @@ export default function Listener() {
             {!live && conn === "connected" && (
               <p className="text-amber-400 text-sm font-mono">Translation temporarily unavailable — resuming automatically…</p>
             )}
-            {info?.captions && caption && (
+            {caption && (
               <div data-testid="listener-caption" className="mt-4 rounded-xl bg-white/5 border border-white/10 p-4 text-left text-lg leading-relaxed text-slate-100 max-h-52 overflow-y-auto whitespace-pre-wrap">
                 {caption}
               </div>
@@ -161,7 +225,7 @@ export default function Listener() {
           </div>
         )}
         {err && <p className="mt-4 text-rose-400 text-sm font-mono" data-testid="listener-error">{err}</p>}
-        <audio ref={audioRef} autoPlay playsInline />
+        <audio ref={audioRef} playsInline />
         <p className="mt-10 text-[11px] text-slate-600 font-mono">No account needed · audio is not recorded</p>
       </div>
     </Shell>

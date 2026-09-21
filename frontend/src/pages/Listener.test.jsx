@@ -1,0 +1,43 @@
+import React from 'react';
+import { beforeEach, afterEach, test, expect, vi } from 'vitest';
+import { render, screen, fireEvent, act, cleanup } from '@testing-library/react';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import Listener from './Listener';
+let sockets;
+beforeEach(() => {
+  sockets = [];
+  global.fetch = vi.fn().mockResolvedValue({ok: true, json: async () => ({name: 'Test event', target: 'fr', pin_protected: false, live: true})});
+  global.MediaSource = class { static isTypeSupported() { return true; } addEventListener() {} };
+  global.WebSocket = class { constructor() { sockets.push(this); } close = vi.fn(); send = vi.fn(); };
+  URL.createObjectURL = vi.fn().mockReturnValue('blob:test');
+  URL.revokeObjectURL = vi.fn();
+  vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+  vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
+});
+afterEach(() => { cleanup(); vi.useRealTimers(); });
+test('reconnects after the first connection drops and stop cancels retry', async () => {
+  render(<MemoryRouter initialEntries={['/e/test']}><Routes><Route path="/e/:id" element={<Listener/>}/></Routes></MemoryRouter>);
+  await screen.findByText('Test event');
+  expect(screen.getByText('Français')).toBeTruthy();
+  vi.useFakeTimers();
+  fireEvent.click(screen.getByText('LISTEN'));
+  expect(sockets.length).toBe(1);
+  act(() => sockets[0].onopen());
+  expect(sockets[0].send).toHaveBeenCalledWith(JSON.stringify({type: 'auth', pin: null}));
+  act(() => sockets[0].onclose({code: 1006}));
+  act(() => vi.advanceTimersByTime(1500));
+  expect(sockets.length).toBe(2);
+  act(() => sockets[1].onclose({code: 1006}));
+  fireEvent.click(screen.getByText('Stop'));
+  act(() => vi.advanceTimersByTime(3000));
+  expect(sockets.length).toBe(2);
+  expect(URL.revokeObjectURL).toHaveBeenCalled();
+});
+test('unsupported audio is explained without opening a socket', async () => {
+  MediaSource.isTypeSupported = () => false;
+  render(<MemoryRouter initialEntries={['/e/test']}><Routes><Route path="/e/:id" element={<Listener/>}/></Routes></MemoryRouter>);
+  await screen.findByText('Test event');
+  fireEvent.click(screen.getByText('LISTEN'));
+  expect(screen.getByText(/Your browser cannot play/)).toBeTruthy();
+  expect(sockets.length).toBe(0);
+});

@@ -1,14 +1,11 @@
-FROM python:3.11-slim
-
-WORKDIR /app/backend
-
-# System deps kept minimal; no GPU required (AI runs in OpenAI cloud).
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
-
-COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY backend/ .
-
+FROM python:3.12-slim
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+WORKDIR /app
+COPY backend/requirements.lock .
+RUN pip install --no-cache-dir -r requirements.lock && useradd --create-home app
+COPY --chown=app:app backend/server.py .
+USER app
 EXPOSE 8001
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8001"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/api/health', timeout=3)"
+# In-memory event rooms require exactly ONE worker and ONE backend replica.
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "1", "--ws-max-size", "262144", "--no-access-log"]

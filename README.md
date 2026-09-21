@@ -1,117 +1,83 @@
 # TranslateBox Live
 
-Real-time spoken-language interpretation for church services, conferences, seminars, meetings and training sessions — optimized for Android tablets, iPad and desktop Chrome/Safari/Edge.
+Console d’interprétation vocale en temps réel et diffusion aux auditeurs par lien/QR code.
+React + Vite, FastAPI, WebRTC vers OpenAI, WebSocket pour la diffusion.
 
-Built on the **OpenAI Realtime Translation API** (`gpt-realtime-translate`) over **WebRTC**. The permanent OpenAI API key stays server-side; the browser only ever receives a short-lived ephemeral session credential.
+## Démarrage local
 
-- **Frontend:** React (CRA + Tailwind + shadcn/ui), installable PWA
-- **Backend:** FastAPI — mints ephemeral realtime session secrets
-- **Model:** `gpt-realtime-translate` (source auto-detected, target = output language)
+Prérequis : Python 3.12 et Node.js 22.12+.
 
----
-
-## Version — V0.5 (Operator prototype)
-
-Directions: **FR → EN** and **EN → FR**. Professional operator dashboard with audio setup + live level meter, event profiles, translation modes, latency & session monitoring, reconnection, transcript export and an experimental tab/screen-audio source. No auth / billing / database / multi-listener yet.
-
----
-
-## Architecture
-
-```
-Browser (React)                         Backend (FastAPI)              OpenAI
-──────────────                          ─────────────────              ──────
-getUserMedia / getDisplayMedia  ── POST /api/realtime-session ──▶  /v1/realtime/translations/client_secrets
-   │  (mic / USB / tab audio)          (uses OPENAI_API_KEY,             │  returns ephemeral "ek_..." secret
-   │                                    OpenAI-Safety-Identifier)         │
-   ▼                                         ◀── ephemeral value ────────┘
-RTCPeerConnection + "oai-events" data channel
-   └── POST offer.sdp ───────────────────────────────────────────▶ /v1/realtime/translations/calls
-                                      ◀── SDP answer ──────────────────────
-   ▶ remote audio track = translated speech (played live)
-   ▶ data channel events: session.input_transcript.delta (source),
-                          session.output_transcript.delta (translation)
+```sh
+python3.12 -m venv .venv
+.venv/bin/pip install -r backend/requirements.lock -r backend/requirements-dev.txt
+cp backend/.env.example backend/.env
+python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
 ```
 
-The backend never returns the permanent key and never logs it. Event Profile / Mode instructions are compiled client-side, sent to the backend, and attached to the session **with automatic fallback** (retry without) because `gpt-realtime-translate` may not accept custom prompting.
+Renseigner `OPENAI_API_KEY` et `OPERATOR_TOKEN` dans `backend/.env`. Le code opérateur généré est indépendant de la clé OpenAI. Ne jamais placer la clé OpenAI dans le frontend.
 
----
-
-## Environment variables
-
-**`backend/.env`**
-```
-MONGO_URL="mongodb://localhost:27017"
-DB_NAME="test_database"
-CORS_ORIGINS="*"
-OPENAI_API_KEY=""                 # <-- your OpenAI key (server-side only)
-OPENAI_REALTIME_MODEL="gpt-realtime-translate"
+```sh
+.venv/bin/uvicorn server:app --app-dir backend --host 127.0.0.1 --port 8001 --reload
 ```
 
-**`frontend/.env`**
-```
-REACT_APP_BACKEND_URL=<public backend URL>   # http://localhost:8001 for local
-```
+Dans un autre terminal :
 
-> The account behind `OPENAI_API_KEY` must have credits and Tier 1+ access to `gpt-realtime-translate`.
-
----
-
-## Run locally (macOS / Mac Studio)
-
-**Backend**
-```bash
-cd backend
-python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-uvicorn server:app --host 0.0.0.0 --port 8001 --reload
-```
-
-**Frontend** (use yarn, not npm)
-```bash
+```sh
 cd frontend
-yarn install
-yarn start
+npm ci
+npm start
 ```
 
-MongoDB is only scaffolding (not used for translation). Install if needed: `brew install mongodb-community && brew services start mongodb-community`.
+Ouvrir <http://localhost:5173>, saisir le code opérateur, tester l’entrée audio puis démarrer la traduction. Vite transmet `/api` et les WebSockets au port 8001. Aucune variable frontend n’est nécessaire pour ce mode ou le déploiement standard.
 
----
+## Déploiement HTTPS
 
-## How to use
+Voir [DEPLOYMENT.md](DEPLOYMENT.md). Le dépôt contient une stack Docker Compose complète avec interface compilée, reverse proxy Caddy, HTTPS automatique et backend privé. MongoDB n’est pas nécessaire.
 
-### Audio setup
-1. Open **Audio Setup**, pick your **Input Device** (built-in mic, USB microphone, USB / USB-C audio interface, or a conference mixer via USB audio).
-2. Press **TEST INPUT** and watch the level meter + peak indicator. TEST INPUT never sends audio to OpenAI and produces no feedback. Confirm signal before starting.
-3. Use headphones to avoid echo.
+```sh
+cp .env.example .env
+# Renseigner domaine, origine HTTPS, clé OpenAI et code opérateur dans .env.
+docker compose up -d --build
+```
 
-### Event Profiles
-Open **Event Profile** and fill Event Name, Organization, Speakers and custom vocabulary (Names, Acronyms, Technical, Biblical, Places) — **one item per line** — plus additional instructions. These are compiled into the session instructions and always included in exports.
+**Un seul worker et une seule réplique backend.** Les événements sont en mémoire : un redémarrage les supprime, et recharger la console perd son jeton d’événement. Recréer alors un événement et partager son nouveau lien. Les salles inactives expirent après 24 heures ; maximum 100 événements et 30 auditeurs par événement par défaut. Cette version vise une installation gérée par un opérateur de confiance, pas un service SaaS multi-utilisateurs.
 
-### Translation Modes
-Pick **General / Sermon / Academic / Business / Custom**. **Sermon** preserves biblical references, theology, names, repetitions and emphasis. **Custom** lets you write your own interpreter instructions.
+## Utilisation
 
-### Start translating
-Choose **FR → EN** or **EN → FR**, press **START**, speak. Source and Translation transcripts stream live; translated audio plays in real time. Use **MUTE INPUT**, **MUTE TRANSLATION**, **RESTART**, **STOP**. Toggle **Fullscreen** for large transcripts.
+- Sélectionner la langue cible, le microphone et la sortie casque. L’audio source est automatiquement reconnu par le modèle.
+- `Test` vérifie le niveau sans envoyer d’audio à OpenAI ; `START` lance une session payante selon votre compte OpenAI.
+- Pour diffuser : créer un événement, partager son QR code et appuyer sur `START EVENT`. Le PIN auditeur est facultatif.
+- Les auditeurs ouvrent `/e/<identifiant>` sans code opérateur, puis appuient sur `LISTEN`.
+- Les sous-titres sont facultatifs. Désactiver leur diffusion efface le texte affiché chez les auditeurs connectés.
+- Export TXT/PDF disponible dans les paramètres. « Save transcripts » conserve le texte dans la session de la page après arrêt ; ce n’est pas une sauvegarde durable.
 
-### English → French test
-Set direction to **EN → FR**, speak English → French transcript + French audio.
+## Sécurité et confidentialité
 
-### Transcripts & export
-Nothing is stored by default. Enable **Save transcripts** to keep them after stopping. **Export TXT** or **Export PDF** on demand (includes event, date/time, languages, source + translation).
+Les routes de création de session, d’événement et de statistiques exigent `Authorization: Bearer <OPERATOR_TOKEN>`. Le code opérateur reste en mémoire dans l’onglet et n’est pas intégré au build. Chaque événement possède un jeton de publication distinct, envoyé dans le premier message WebSocket, jamais dans le QR code ou l’URL. Le PIN est également envoyé dans le premier message.
 
-### Experimental: Tab / Screen audio (desktop)
-In Audio Setup choose **Tab / Screen**, START, pick the tab and enable **Share tab audio** (e.g. a YouTube livestream) to translate it live. Support varies by browser/OS; microphone/USB input is unaffected if unavailable. No scraping/downloading — browser live capture only.
+La clé OpenAI reste sur le serveur. Le navigateur opérateur reçoit uniquement le secret temporaire et les métadonnées nécessaires. Les requêtes sont limitées en taille et fréquence. Les origines HTTP/WS sont explicitement configurées. Les enregistrements audio ne sont pas écrits sur disque par cette application ; des tampons audio temporaires existent en mémoire, et l’audio de traduction est traité par OpenAI. Les profils et préférences utilisent le stockage local du navigateur.
 
-### Debug
-Visit **`/debug`** for OpenAI/WebRTC/ICE state, audio device, events, reconnections, timestamps and latency. The key is never shown.
+## Tests
 
----
+```sh
+PYTHONPATH=backend .venv/bin/pytest backend/unit_tests -q
+cd frontend
+npm ci
+npm test
+npm run build
+npm audit
+```
 
-## Security
-`OPENAI_API_KEY` is server-side only, never sent to the browser, never in frontend logs or network responses, never printed in backend logs. Browser uses only ephemeral (`ek_...`) session secrets. `.env` files are git-ignored.
+Ces tests sont hors ligne vis-à-vis d’OpenAI : aucune clé réelle ni crédit API nécessaire. Les fichiers historiques dans `backend/tests` et `test_reports` décrivent l’ancien environnement de prévisualisation ; ils ne sont pas la suite de validation de cette version. Ne pas les lancer contre une instance de production.
 
-## Known limitations
-- `gpt-realtime-translate` supports 13 output languages and does not officially accept custom prompts/glossaries — Event Profile/Mode steering is best-effort with fallback.
-- Latency is an **estimate** (source→translation event), labelled as such.
-- Tab/screen audio is experimental and desktop-oriented.
+La CI ajoute la construction des deux images et un contrôle HTTP de la stack Compose.
+
+## Limites à vérifier avant un événement réel
+
+- Microphone et WebRTC : HTTPS obligatoire hors localhost.
+- Diffusion : WebM/Opus via MediaRecorder et MediaSource. Chrome/Edge sont la cible ; Safari/iOS doit être testé sur les appareils exacts. Une erreur explicite s’affiche si le format est indisponible.
+- Validation audio de bout en bout, arrivée tardive d’auditeurs, reprise après coupure et charge à 30 auditeurs restent à effectuer sur le réseau réel. Les tests automatisés ne prouvent pas la qualité audio ni la latence.
+- La latence affichée est une estimation. Les profils/glossaires sont une tentative de personnalisation avec repli si le modèle les refuse.
+- `/api/stats.openai_sessions` compte les opérateurs de diffusion connectés, pas les sessions OpenAI réelles ; une session utilisée uniquement dans la console n’est pas comptabilisée.
+
+Intégration fondée sur la [documentation officielle de traduction temps réel](https://developers.openai.com/api/docs/guides/realtime-translation).
