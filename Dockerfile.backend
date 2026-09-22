@@ -3,7 +3,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 COPY backend/requirements.lock .
 RUN pip install --no-cache-dir -r requirements.lock && useradd --create-home app
-COPY --chown=app:app backend/server.py .
+COPY --chown=app:app backend/server.py backend/event_store.py ./
+RUN mkdir /data && chown app:app /data
 USER app
 EXPOSE 8001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/api/health', timeout=3)"

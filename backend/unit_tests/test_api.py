@@ -176,3 +176,53 @@ def test_audio_caption_fanout_and_operator_disconnect(client):
                 assert late.receive_json()['text'] == 'Bonjour'
                 assert listener.receive_json()['text'] == 'Bonjour'
         assert listener.receive_json()['live'] is False
+
+
+def test_catalog_survives_restart_and_rotates_publishing_token(client, monkeypatch, tmp_path):
+    from event_store import EventStore
+    path = str(tmp_path / 'events.sqlite3')
+    first = EventStore(path)
+    monkeypatch.setattr(server, 'EVENTS', first)
+    ev = event(client, pin='1234', target_language='fr')
+    first.close()
+    second = EventStore(path)
+    monkeypatch.setattr(server, 'EVENTS', second)
+    server.ROOMS.clear()
+    assert client.get('/api/events/' + ev['id']).json()['target'] == 'fr'
+    assert client.get('/api/events').status_code == 401
+    listing = client.get('/api/events', headers=AUTH)
+    assert listing.json()['events'][0]['id'] == ev['id']
+    assert 'operator_token' not in listing.text
+    response = client.post(f"/api/events/{ev['id']}/resume", headers=AUTH)
+    assert response.status_code == 200
+    assert response.headers['cache-control'] == 'no-store'
+    token = response.json()['operator_token']
+    assert token != ev['operator_token']
+    assert token not in (tmp_path / 'events.sqlite3').read_bytes().decode('latin1')
+    with client.websocket_connect(f"/api/ws/{ev['id']}?role=operator") as ws:
+        ws.send_json({'token': ev['operator_token']})
+        with pytest.raises(WebSocketDisconnect): ws.receive_json()
+    with client.websocket_connect(f"/api/ws/{ev['id']}?role=operator") as ws:
+        ws.send_json({'token': token})
+        assert ws.receive_json()['type'] == 'ready'
+        assert client.post(f"/api/events/{ev['id']}/resume", headers=AUTH).status_code == 409
+    assert server._check_pin(ev['id'], '1234') is True
+    second.pop(ev['id'])
+    second.close()
+    third = EventStore(path)
+    assert not third
+    third.close()
+
+
+@pytest.mark.parametrize('status,code,expected,message', [
+    (401, None, 502, 'key is invalid'), (403, None, 502, 'cannot access'),
+    (429, 'insufficient_quota', 402, 'insufficient credit'),
+    (429, 'rate_limit_exceeded', 429, 'Wait one minute'), (500, None, 502, 'temporarily unavailable'),
+])
+def test_actionable_upstream_errors_without_leaking_body(client, monkeypatch, status, code, expected, message):
+    response = httpx.Response(status, json={'error': {'code': code, 'message': 'private upstream data sk-secret'}})
+    monkeypatch.setattr(server, '_mint_session', AsyncMock(return_value=(response, False)))
+    result = client.post('/api/realtime-session', json={}, headers=AUTH)
+    assert result.status_code == expected
+    assert message in result.json()['detail']
+    assert 'sk-secret' not in result.text

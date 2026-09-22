@@ -40,7 +40,7 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-**Un seul worker et une seule réplique backend.** Les événements sont en mémoire : un redémarrage les supprime, et recharger la console perd son jeton d’événement. Recréer alors un événement et partager son nouveau lien. Les salles inactives expirent après 24 heures ; maximum 100 événements et 30 auditeurs par événement par défaut. Cette version vise une installation gérée par un opérateur de confiance, pas un service SaaS multi-utilisateurs.
+**Un seul worker et une seule réplique backend.** Les événements sont sauvegardés dans SQLite, sur le volume Docker `event_data`. Après redémarrage ou rechargement, utiliser **Saved events → Resume**, puis **START EVENT**, pour conserver le lien, le QR code et le PIN. La reprise renouvelle le jeton de publication et est refusée si un opérateur diffuse déjà. Les salles inactives expirent après 24 heures ; maximum 100 événements et 30 auditeurs par événement par défaut. Cette version vise une installation gérée par un opérateur de confiance, pas un service SaaS multi-utilisateurs.
 
 ## Utilisation
 

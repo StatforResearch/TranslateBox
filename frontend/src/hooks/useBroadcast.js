@@ -1,4 +1,4 @@
-import { operatorFetch } from "../lib/api";
+import { operatorFetch, responseError } from "../lib/api";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { OperatorBroadcaster, WS_BASE } from "../lib/broadcast";
 import { usePersistentState } from "./usePersistentState";
@@ -6,7 +6,10 @@ import { usePersistentState } from "./usePersistentState";
 // V1 broadcast: ONE operator captures the translated audio stream and fans it
 // out to many listeners through the backend WebSocket hub. Listeners never
 // touch OpenAI. This hook owns all event/broadcast state for the operator.
-export function useBroadcast({ API, engineRef, targetLang, profile, start, stop, setError, targetText, active }) {
+export function useBroadcast({ API, engineRef, targetLang, profile, start, stop, setError, targetText, active, setTargetLang }) {
+  const [savedEvents, setSavedEvents] = useState([]);
+  const [catalogError, setCatalogError] = useState("");
+  const [catalogLoading, setCatalogLoading] = useState(false);
   const [eventInfo, setEventInfo] = useState(null);
   const [listeners, setListeners] = useState(0);
   const [broadcasting, setBroadcasting] = useState(false);
@@ -36,6 +39,37 @@ export function useBroadcast({ API, engineRef, targetLang, profile, start, stop,
     setBroadcasting(false);
   }, []);
 
+  const refreshEvents = useCallback(async () => {
+    setCatalogLoading(true);
+    try {
+      const response = await operatorFetch(`${API}/events`);
+      if (!response.ok) throw new Error(await responseError(response, "Could not load saved events."));
+      setSavedEvents((await response.json()).events);
+      setCatalogError("");
+    } catch (error) { setCatalogError(error.message); }
+    finally { setCatalogLoading(false); }
+  }, [API]);
+
+  useEffect(() => { refreshEvents(); }, [refreshEvents]);
+
+  const resumeEvent = useCallback(async (id) => {
+    if (active || broadcasting) throw new Error("Stop the current session before selecting another event.");
+    const response = await operatorFetch(`${API}/events/${encodeURIComponent(id)}/resume`, {method: "POST"});
+    if (!response.ok) throw new Error(await responseError(response, "Could not resume this event."));
+    const event = await response.json();
+    setEventInfo(event);
+    setTargetLang(event.target);
+    setCaptionsToListeners(event.captions);
+    setListeners(event.listeners);
+    await refreshEvents();
+    return event;
+  }, [API, active, broadcasting, refreshEvents, setTargetLang, setCaptionsToListeners]);
+
+  const newEvent = useCallback(() => {
+    if (active || broadcasting) return;
+    setEventInfo(null); setListeners(0); refreshEvents();
+  }, [active, broadcasting, refreshEvents]);
+
   const createEvent = useCallback(async (fields = {}) => {
     const res = await operatorFetch(`${API}/events`, {
       method: "POST",
@@ -48,11 +82,12 @@ export function useBroadcast({ API, engineRef, targetLang, profile, start, stop,
         captions: captionsToListeners,
       }),
     });
-    if (!res.ok) throw new Error("Could not create event");
+    if (!res.ok) throw new Error(await responseError(res, "Could not create event."));
     const info = await res.json();
     setEventInfo(info);
+    await refreshEvents();
     return info;
-  }, [API, targetLang, captionsToListeners, profile.organization]);
+  }, [API, targetLang, captionsToListeners, profile.organization, refreshEvents]);
 
   const startEvent = useCallback(async (fields) => {
     setError(null);
@@ -111,6 +146,7 @@ export function useBroadcast({ API, engineRef, targetLang, profile, start, stop,
 
   return {
     createEvent, startEvent, stopEvent, restartBroadcast,
+    savedEvents, catalogError, catalogLoading, refreshEvents, resumeEvent, newEvent,
     eventInfo, listeners, broadcasting,
     captionsToListeners, setCaptionsToListeners,
   };

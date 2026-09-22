@@ -12,3 +12,6 @@
 work
 outputs
 test_reports
+
+backend/data
+**/*.sqlite3

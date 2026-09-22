@@ -7,3 +7,12 @@ export function operatorHeaders() { return { Authorization: `Bearer ${operatorTo
 export function operatorFetch(url, options = {}) {
   return fetch(url, { ...options, headers: { ...operatorHeaders(), ...options.headers } });
 }
+
+export async function responseError(response, fallback) {
+  try {
+    const body = await response.json();
+    if (typeof body.detail === 'string') return body.detail;
+    if (Array.isArray(body.detail)) return 'Check the field lengths and selected language, then try again.';
+  } catch { /* Non-JSON proxy error */ }
+  return fallback;
+}

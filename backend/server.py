@@ -15,6 +15,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 import httpx
 import anyio
+from event_store import EventStore
 
 
 ROOT_DIR = Path(__file__).parent
@@ -246,11 +247,26 @@ async def create_realtime_session(req: SessionRequest, request: Request):
     if resp.status_code >= 400:
         # Log only status: upstream bodies may contain sensitive information.
         logger.error("OpenAI session error %s", resp.status_code)
-        status = resp.status_code if resp.status_code in (429, 401, 402, 403) else 502
-        raise HTTPException(
-            status_code=status,
-            detail="The translation service could not start a session right now. Please try again shortly.",
-        )
+        try:
+            upstream_code = resp.json().get("error", {}).get("code")
+        except (ValueError, AttributeError):
+            upstream_code = None
+        if resp.status_code == 401:
+            detail = "The server OpenAI key is invalid. Ask the administrator to replace it and restart the backend."
+            status = 502
+        elif resp.status_code == 403:
+            detail = "The server OpenAI project cannot access this translation model. Ask the administrator to check project permissions."
+            status = 502
+        elif resp.status_code == 402 or upstream_code == "insufficient_quota":
+            detail = "The OpenAI project has insufficient credit or quota. Ask the administrator to check billing and usage limits."
+            status = 402
+        elif resp.status_code == 429:
+            detail = "The translation service is receiving too many requests. Wait one minute before restarting."
+            status = 429
+        else:
+            detail = "The translation service is temporarily unavailable. Try again shortly."
+            status = 502
+        raise HTTPException(status_code=status, detail=detail)
 
     logger.info(
         "Minted ephemeral translation session (model=%s, target=%s, instructions_applied=%s)",
@@ -277,7 +293,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 MAX_LISTENERS = int(os.environ.get("MAX_LISTENERS", "30"))
 MAX_EVENTS = int(os.environ.get("MAX_EVENTS", "100"))
 EVENT_TTL = int(os.environ.get("EVENT_TTL_SECONDS", "86400"))
-EVENTS = {}   # event_id -> {name, organization, target, pin_hash, captions, created}
+EVENTS = EventStore(os.environ.get("EVENTS_DB_PATH", str(ROOT_DIR / "data" / "events.sqlite3")))
 ROOMS = {}    # event_id -> {"operator": ws|None, "listeners": set(), "init": bytes|None}
 
 
@@ -313,7 +329,7 @@ async def create_event(body: EventCreate):
         "name": body.name or "Live Interpretation",
         "organization": body.organization or "",
         "target": target,
-        "operator_token": token,
+        "operator_token_hash": hashlib.sha256(token.encode()).hexdigest(),
         "pin_hash": hashlib.sha256(body.pin.encode()).hexdigest() if body.pin else None,
         "captions": bool(body.captions),
         "created": time.time(),
@@ -333,7 +349,27 @@ def _public_event(eid):
         "captions": ev["captions"], "pin_protected": ev["pin_hash"] is not None,
         "live": bool(room.get("operator")), "listeners": len(room.get("listeners", [])),
         "max_listeners": MAX_LISTENERS,
+        "created": ev["created"],
+        "expires_at": ev["created"] + EVENT_TTL,
     }
+
+
+@api_router.get("/events", dependencies=[Depends(require_operator)])
+async def list_events():
+    _prune_events()
+    return {"events": [{"id": eid, **_public_event(eid)} for eid in sorted(EVENTS, key=lambda eid: EVENTS[eid]["created"], reverse=True)]}
+
+
+@api_router.post("/events/{eid}/resume", dependencies=[Depends(require_operator)])
+async def resume_event(eid: str):
+    _prune_events()
+    if eid not in EVENTS:
+        raise HTTPException(404, "Event expired or not found. Create a new event.")
+    if _room(eid)["operator"] is not None:
+        raise HTTPException(409, "This event is already broadcasting in another tab. Stop it there before resuming.")
+    token = secrets.token_urlsafe(32)
+    EVENTS[eid] = {**EVENTS[eid], "operator_token_hash": hashlib.sha256(token.encode()).hexdigest()}
+    return JSONResponse({"id": eid, "path": f"/e/{eid}", "operator_token": token, **_public_event(eid)}, headers={"Cache-Control": "no-store"})
 
 
 @api_router.get("/events/{eid}")
@@ -414,7 +450,9 @@ async def _run_operator(websocket: WebSocket, eid: str, room):
                 try:
                     caption = json.loads(msg["text"])
                     if caption.get("type") == "caption" and isinstance(caption.get("text"), str):
-                        EVENTS[eid]["captions"] = True
+                        enabled = bool(caption["text"])
+                        if EVENTS[eid]["captions"] != enabled:
+                            EVENTS[eid] = {**EVENTS[eid], "captions": enabled}
                         await _fanout(room, "send_json", {"type": "caption", "text": caption["text"][-6000:]})
                 except (ValueError, AttributeError):
                     pass
@@ -481,7 +519,7 @@ async def ws_broadcast(websocket: WebSocket, eid: str, role: str = "listener"):
         return
     if role == "operator":
         token = auth.get("token", "")
-        if not isinstance(token, str) or not secrets.compare_digest(token.encode(), EVENTS[eid]["operator_token"].encode()):
+        if not isinstance(token, str) or not secrets.compare_digest(hashlib.sha256(token.encode()).hexdigest(), EVENTS[eid]["operator_token_hash"]):
             await websocket.close(code=4401)
             return
         if room["operator"] is not None:

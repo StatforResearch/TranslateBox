@@ -3,6 +3,7 @@ import { Speaker, AlertTriangle, X, Maximize2, Minimize2, Globe } from "lucide-r
 import { useTranslationSession } from "../context/TranslationContext";
 import { Header } from "../components/Header";
 import { TranscriptPanel } from "../components/TranscriptPanel";
+import { SetupChecklist } from "../components/SetupChecklist";
 import { BroadcastPanel } from "../components/BroadcastPanel";
 import { AudioControlCard } from "../components/console/AudioControlCard";
 import { TransportControls } from "../components/console/TransportControls";
@@ -35,6 +36,7 @@ export default function Console() {
       )}
 
       <main className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-8 space-y-5">
+        <SetupChecklist />
         <AudioControlCard />
 
         {error && (
@@ -59,7 +61,7 @@ export default function Console() {
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5">{panels}</section>
 
         <p className="text-center text-[11px] text-slate-400 dark:text-slate-600 font-mono">
-          Processed in real time · nothing is recorded or stored by default · use headphones to avoid echo
+          Audio processed in real time · no audio files recorded by this app · use headphones to avoid echo
         </p>
       </main>
     </div>

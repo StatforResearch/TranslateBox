@@ -26,7 +26,10 @@ function mapError(err) {
   const detail = parts.slice(2).join(":");
   switch (code) {
     case "MIC_PERMISSION":
-      return "Input access was denied. Allow microphone (or screen/tab audio) permission and try again.";
+      if (parts[1] === "NotFoundError") return "No microphone was found. Connect an audio input, then choose it in Audio input.";
+      if (parts[1] === "NotReadableError") return "The microphone is busy or unavailable. Close other audio applications and retry.";
+      if (parts[1] === "OverconstrainedError") return "The selected microphone is no longer available. Choose another Audio input.";
+      return "Microphone access was denied. Allow it in the browser and macOS privacy settings, then retry Test.";
     case "NO_AUDIO_INPUT":
       return detail || "No audio input detected. Check your microphone or USB audio interface.";
     case "SESSION_TOKEN":
@@ -254,7 +257,7 @@ export function TranslationProvider({ children }) {
     setTesting(false);
   }, []);
 
-  const broadcast = useBroadcast({ API, engineRef, targetLang, profile, start, stop, setError, targetText, active });
+  const broadcast = useBroadcast({ API, engineRef, targetLang, profile, start, stop, setError, targetText, active, setTargetLang });
 
   useEffect(() => () => {
     engineRef.current.stop();

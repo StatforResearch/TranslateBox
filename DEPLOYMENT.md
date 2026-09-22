@@ -4,7 +4,7 @@
 
 Utiliser un serveur Linux avec Docker Engine et Docker Compose v2. Le domaine doit pointer vers son adresse publique (DNS A, et AAAA uniquement si IPv6 est correctement routé). Autoriser les ports TCP 80/443 ; UDP 443 est facultatif pour HTTP/3. Ne pas exposer le port backend 8001.
 
-L’application conserve ses événements en mémoire. Garder **une seule réplique backend et un seul worker Uvicorn**. Pas de MongoDB, Redis ou GPU nécessaire pour cette version. L’interprétation exige une connexion Internet vers OpenAI.
+L’application conserve le catalogue d’événements dans SQLite (`EVENTS_DB_PATH`, volume Docker `event_data`) et les connexions audio en mémoire. Garder **une seule réplique backend et un seul worker Uvicorn**. Pas de MongoDB, Redis ou GPU nécessaire pour cette version. L’interprétation exige une connexion Internet vers OpenAI.
 
 ## 2. Configurer les secrets et HTTPS
 
@@ -25,7 +25,7 @@ python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
 
 Ne pas versionner `.env`. Le code opérateur donne accès à la création de sessions qui consomment le budget du projet OpenAI ; le partager uniquement avec les opérateurs autorisés. Le PIN d’un événement est destiné aux auditeurs, pas à l’administration.
 
-Caddy obtient et renouvelle le certificat automatiquement pour le domaine configuré. Les volumes `caddy_data` et `caddy_config` conservent son état. Si un autre service occupe 80/443, libérer ces ports ou adapter explicitement l’intégration au reverse proxy existant.
+Caddy obtient et renouvelle le certificat automatiquement pour le domaine configuré. Ne pas supprimer `event_data` lors des mises à jour : ce volume conserve les événements et leurs codes hachés, sans audio ni transcription. Les événements inactifs expirent 24 heures après leur création. Les événements créés avant cette mise à jour ne peuvent pas être récupérés après redémarrage. Les volumes `caddy_data` et `caddy_config` conservent son état. Si un autre service occupe 80/443, libérer ces ports ou adapter explicitement l’intégration au reverse proxy existant.
 
 ## 3. Démarrer et vérifier
 
