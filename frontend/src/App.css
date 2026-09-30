@@ -74,3 +74,12 @@
 .tb-home-link:hover { background:#ffffff15; }
 .tb-home-link:focus-visible { outline:3px solid #38bdf8; outline-offset:3px; }
 @media(max-width:640px) { .tb-console > header { height:auto; flex-wrap:wrap; gap:10px; padding-top:12px; padding-bottom:12px; } .tb-console > header > div:last-child { flex-wrap:wrap; } }
+/* The same home-page brand doubles as a compact home link in the studio. */
+.tb-console > header .tb-brand-compact { font-size:20px; gap:9px; color:#fff; min-height:44px; border-radius:8px; }
+.tb-console > header .tb-brand-compact > svg { width:30px; height:30px; }
+.tb-console > header .tb-brand-compact > span { color:#fff; }
+.tb-console > header .tb-brand-compact .tb-cyan { color:#39baf9; }
+.tb-console > header .tb-brand-compact small { font-size:7px; letter-spacing:2px; color:#c4d3f1; }
+.tb-brand:focus-visible { outline:3px solid #38bdf8; outline-offset:5px; }
+.tb-console > header { height:auto; min-height:60px; padding-top:8px; padding-bottom:8px; }
+@media(max-width:380px) { .tb-console > header .tb-brand-compact { font-size:18px; } }

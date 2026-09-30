@@ -1,3 +1,4 @@
+import { BrandLogo } from './BrandLogo';
 import { InterfaceLanguage } from './InterfaceLanguage';
 import { useLocale } from '../context/LocaleContext';
 import React, { useState } from 'react';
@@ -23,7 +24,7 @@ export default function OperatorAccess({ children }) {
   if (ready) return children;
   return <main className="tb-welcome">
     <nav className="tb-nav" aria-label={t("Navigation principale")}>
-      <a className="tb-brand" href="/"><AudioLines aria-hidden="true" /><span>Translate<span className="tb-cyan">Box</span><small>{t("LIVE INTERPRETATION")}</small></span></a>
+      <BrandLogo />
       <a className="tb-nav-link" href="#fonctionnement">{t("Comment ça marche")}</a>
       <InterfaceLanguage />
       <a className="tb-nav-cta" href="#connexion">{t("Espace opérateur")}<ArrowRight size={16} /></a>
