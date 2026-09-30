@@ -26,7 +26,7 @@ export const TransportControls = () => {
   return (
     <section className="rounded-2xl bg-white/80 dark:bg-[#121824]/70 backdrop-blur-xl border border-slate-200/70 dark:border-white/10 shadow-lg shadow-black/5 dark:shadow-black/20 p-4 md:p-5 flex flex-col lg:flex-row items-center gap-4">
       {!active ? (
-        <button data-testid="start-translation-button" onClick={start} className="w-full lg:w-auto lg:flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-lg py-4 px-8 rounded-xl shadow-[0_0_30px_rgba(16,185,129,0.35)] hover:scale-[1.02] active:scale-[0.98] transition-transform flex items-center gap-3 justify-center min-h-[56px]"><Play className="h-6 w-6 fill-white" />{t("START")}</button>
+        <a href="#event" data-testid="prepare-broadcast-link" className="w-full lg:w-auto lg:flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-lg py-4 px-8 rounded-xl shadow-[0_0_30px_rgba(16,185,129,0.35)] hover:scale-[1.02] active:scale-[0.98] transition-transform flex items-center gap-3 justify-center min-h-[56px]"><Play className="h-6 w-6 fill-white" />{t("Prepare broadcast")}</a>
       ) : (
         <button data-testid="stop-translation-button" onClick={stop} className="w-full lg:w-auto lg:flex-1 bg-rose-600 hover:bg-rose-500 text-white font-bold text-lg py-4 px-8 rounded-xl shadow-[0_0_30px_rgba(239,68,68,0.35)] hover:scale-[1.02] active:scale-[0.98] transition-transform flex items-center gap-3 justify-center min-h-[56px]"><Square className="h-6 w-6 fill-white" />{t("STOP")}</button>
       )}

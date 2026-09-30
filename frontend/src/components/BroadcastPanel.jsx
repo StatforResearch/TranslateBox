@@ -9,7 +9,7 @@ export const BroadcastPanel = () => {
   const {
     eventInfo, createEvent, startEvent, stopEvent, restartBroadcast,
     savedEvents, catalogError, catalogLoading, refreshEvents, resumeEvent, newEvent,
-    listeners, broadcasting, active, captionsToListeners, setCaptionsToListeners, status,
+    listeners, broadcasting, active, captionsToListeners, setCaptionsToListeners, status, level, metrics,
   } = useTranslationSession();
 
   const [name, setName] = useState(t("Live Interpretation"));
@@ -36,6 +36,12 @@ export const BroadcastPanel = () => {
         <span className="flex items-center gap-1.5 text-sm font-mono font-bold" data-testid="listeners-count"><Users className="h-4 w-4 text-cyan-500" /> {listeners} / {eventInfo?.max_listeners || 30}</span>
       </div>
 
+      <div className="rounded-lg border border-slate-300 dark:border-slate-700 p-3 text-sm space-y-1" data-testid="audio-route">
+        <p>{t("Microphone signal")}: {t(active && level.peak > 0.02 ? "Detected" : "Waiting")}</p>
+        <p>{t("Translated audio track")}: {t(active && ["active", "muted"].includes(status.outputAudio) ? "Received" : "Waiting")}</p>
+        <p>{t("Broadcast connection")}: {t(broadcasting ? "Connected" : "Stopped")} · {listeners} {t("connected listeners")}</p>
+        <p className="text-slate-500">{t("A connected listener does not confirm audible sound. Use the headphone test on the listener page.")}</p>
+      </div>
       {error && <p role="alert" className="text-rose-500">{error}</p>}
       {!eventInfo && (
         <div className="space-y-2 border-b border-slate-200 dark:border-slate-700 pb-4">
@@ -83,7 +89,7 @@ export const BroadcastPanel = () => {
             <p className="text-sm text-slate-500">{t("Share only this link and the event PIN with listeners. Keep your operator code private.")}</p>
             <div className="flex flex-wrap gap-2 pt-1">
               {!broadcasting ? (
-                <button data-testid="start-event-button" onClick={doStart} disabled={busy} className="flex items-center gap-2 px-5 h-11 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-[0_0_25px_rgba(16,185,129,0.3)] disabled:opacity-50"><Play className="h-5 w-5 fill-white" />{t("START EVENT")}</button>
+                <button data-testid="start-event-button" onClick={doStart} disabled={busy} className="flex items-center gap-2 px-5 h-11 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-[0_0_25px_rgba(16,185,129,0.3)] disabled:opacity-50"><Play className="h-5 w-5 fill-white" />{busy ? t("Starting…") : t("Start broadcast")}</button>
               ) : (
                 <button data-testid="stop-event-button" onClick={stopEvent} className="flex items-center gap-2 px-5 h-11 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold"><Square className="h-5 w-5 fill-white" />{t("STOP EVENT")}</button>
               )}

@@ -1,5 +1,22 @@
 // Interface copy only: never translate user content, captions or API payloads.
 export const messages = {
+"Prepare broadcast": {"en": "Prepare broadcast", "fr": "Préparer la diffusion"},
+"Start broadcast": {"en": "Start broadcast", "fr": "Démarrer la diffusion"},
+"Starting\u2026": {"en": "Starting…", "fr": "Démarrage…"},
+"Microphone signal": {"en": "Microphone signal", "fr": "Signal du microphone"},
+"Detected": {"en": "Detected", "fr": "Détecté"},
+"Waiting": {"en": "Waiting", "fr": "En attente"},
+"Translated audio track": {"en": "Translated audio track", "fr": "Piste audio traduite"},
+"Received": {"en": "Received", "fr": "Reçue"},
+"Broadcast connection": {"en": "Broadcast connection", "fr": "Connexion de diffusion"},
+"connected listeners": {"en": "connected listeners", "fr": "auditeurs connectés"},
+"A connected listener does not confirm audible sound. Use the headphone test on the listener page.": {"en": "A connected listener does not confirm audible sound. Use the headphone test on the listener page.", "fr": "Un auditeur connecté ne confirme pas que le son est audible. Utilisez le test du casque sur la page auditeur."},
+"Test my headphones": {"en": "Test my headphones", "fr": "Tester mon casque"},
+"Playing test sound\u2026": {"en": "Playing test sound…", "fr": "Lecture du son de test…"},
+"Short local beep. No microphone or translation credit used.": {"en": "Short local beep. No microphone or translation credit used.", "fr": "Bip local court. Aucun microphone ni crédit de traduction utilisé."},
+"Did you hear the beep? If not, check your media volume and headphone connection.": {"en": "Did you hear the beep? If not, check your media volume and headphone connection.", "fr": "Avez-vous entendu le bip ? Sinon, vérifiez le volume multimédia et la connexion du casque."},
+"Sound test unavailable. Check your browser and audio output.": {"en": "Sound test unavailable. Check your browser and audio output.", "fr": "Test sonore indisponible. Vérifiez le navigateur et la sortie audio."},
+
   "Interface language": {
     "en": "Interface language",
     "fr": "Langue de l’interface"
@@ -732,13 +749,13 @@ export const messages = {
     "en": "Server unavailable. Check Docker and your connection.",
     "fr": "Serveur indisponible. Vérifiez Docker et votre connexion."
   },
-  "Test only checks local input. START begins a translation session; STOP ends it. Muting does not end the session.": {
-    "en": "Test only checks local input. START begins a translation session; STOP ends it. Muting does not end the session.",
-    "fr": "Le test vérifie uniquement l’entrée locale. DÉMARRER lance la traduction ; ARRÊTER la termine. Couper le son ne termine pas la session."
+  "Test only checks local input. Start broadcast begins translation and sends audio to listeners; STOP ends the session. Muting does not end the session.": {
+    "en": "Test only checks local input. Start broadcast begins translation and sends audio to listeners; STOP ends the session. Muting does not end the session.",
+    "fr": "Le test vérifie uniquement l’entrée locale. Démarrer la diffusion lance la traduction et le son des auditeurs ; ARRÊTER termine la session. Couper le son ne termine pas la session."
   },
-  "Le test vérifie uniquement l’entrée locale. DÉMARRER lance la traduction ; ARRÊTER la termine. Couper le son ne termine pas la session.": {
-    "en": "Test only checks local input. START begins a translation session; STOP ends it. Muting does not end the session.",
-    "fr": "Le test vérifie uniquement l’entrée locale. DÉMARRER lance la traduction ; ARRÊTER la termine. Couper le son ne termine pas la session."
+  "Le test vérifie uniquement l’entrée locale. Démarrer la diffusion lance la traduction et le son des auditeurs ; ARRÊTER termine la session. Couper le son ne termine pas la session.": {
+    "en": "Test only checks local input. Start broadcast begins translation and sends audio to listeners; STOP ends the session. Muting does not end the session.",
+    "fr": "Le test vérifie uniquement l’entrée locale. Démarrer la diffusion lance la traduction et le son des auditeurs ; ARRÊTER termine la session. Couper le son ne termine pas la session."
   },
   "Broadcast · Multi-listener": {
     "en": "Broadcast · Multi-listener",

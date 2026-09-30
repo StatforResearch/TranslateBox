@@ -28,6 +28,6 @@ export function SetupChecklist() {
       <li>{t("Target language:")}{" "}<b>{targetLang.toUpperCase()}</b>{t(". Select it in Translate to before starting.")}</li>
       <li>{service === 'checking' ? t("Checking server…") : service === 'configured' ? t("Server reachable; a key is configured. Credit and key validity are not checked here.") : service === 'missing' ? t("Server key missing. Ask the administrator to configure OPENAI_API_KEY.") : t("Server unavailable. Check Docker and your connection.")}</li>
     </ol>
-    <p className="mt-3 text-sm text-slate-500">{t("Test only checks local input. START begins a translation session; STOP ends it. Muting does not end the session.")}</p>
+    <p className="mt-3 text-sm text-slate-500">{t("Test only checks local input. Start broadcast begins translation and sends audio to listeners; STOP ends the session. Muting does not end the session.")}</p>
   </details>;
 }

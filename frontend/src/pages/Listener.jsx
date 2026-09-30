@@ -1,3 +1,4 @@
+import { HeadphoneTest } from '../components/HeadphoneTest';
 import { HomeLink } from '../components/HomeLink';
 import { InterfaceLanguage } from '../components/InterfaceLanguage';
 import { useLocale } from '../context/LocaleContext';
@@ -219,6 +220,7 @@ export default function Listener() {
         </div>
 
         <p className="mb-5 text-sm text-slate-300">{t("Scanning the QR code opens the event. Tap LISTEN below to connect and enable sound.")}</p>
+        {!listening && <HeadphoneTest />}
         {needPin && !listening && (
           <input data-testid="listener-pin-input" value={pin} onChange={(e) => setPin(e.target.value)} placeholder={t("Enter event PIN")}
             className="w-full h-12 mb-4 rounded-xl bg-white/5 border border-white/10 px-4 text-center text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
