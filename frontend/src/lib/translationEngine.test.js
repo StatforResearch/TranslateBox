@@ -86,3 +86,14 @@ test('legacy display selection never requests screen sharing', async () => {
     else delete navigator.mediaDevices;
   }
 });
+
+
+test.each([true, false])('microphone mode reaches session configuration: ambient=%s', async (ambient) => {
+  const engine = new TranslationEngine({apiBase: '/api'});
+  engine.ambient = ambient;
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ok: true, json: async () => ({value: 'ek_test'})}));
+  try {
+    await engine._getEphemeral();
+    expect(JSON.parse(fetch.mock.calls[0][1].body).noise_reduction).toBe(ambient ? 'far_field' : 'near_field');
+  } finally { vi.unstubAllGlobals(); }
+});

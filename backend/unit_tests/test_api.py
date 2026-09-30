@@ -226,3 +226,16 @@ def test_actionable_upstream_errors_without_leaking_body(client, monkeypatch, st
     assert result.status_code == expected
     assert message in result.json()['detail']
     assert 'sk-secret' not in result.text
+
+
+@pytest.mark.parametrize("mode", ["near_field", "far_field"])
+def test_noise_reduction_forwarded_to_openai(client, monkeypatch, mode):
+    mint = AsyncMock(return_value=(httpx.Response(200, json={"value": "ek_test"}), False))
+    monkeypatch.setattr(server, "_mint_session", mint)
+    response = client.post("/api/realtime-session", headers=AUTH, json={"target_language": "fr", "noise_reduction": mode})
+    assert response.status_code == 200
+    assert mint.call_args.args[0]["session"]["audio"]["input"]["noise_reduction"] == {"type": mode}
+
+
+def test_invalid_noise_reduction_rejected(client):
+    assert client.post("/api/realtime-session", headers=AUTH, json={"noise_reduction": "invalid"}).status_code == 422

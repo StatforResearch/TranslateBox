@@ -32,3 +32,16 @@ test('server rejection does not leave start pending', async () => {
   await expect(pending).rejects.toThrow('4401');
   expect(broadcaster.ws).toBe(null);
 });
+
+
+test('socket failure after startup reports an actionable stopped state', async () => {
+  const onStatus = vi.fn();
+  const broadcaster = new OperatorBroadcaster('ws://localhost/api/ws/event', {onStatus});
+  const pending = broadcaster.start({});
+  socket.onmessage({data: JSON.stringify({type: 'ready'})});
+  await pending;
+  socket.onerror();
+  expect(onStatus).toHaveBeenCalledWith({live: false, error: 'Broadcast connection failed'});
+  expect(broadcaster.recorder).toBe(null);
+  expect(socket.close).toHaveBeenCalled();
+});

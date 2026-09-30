@@ -12,6 +12,7 @@ import logging
 import hashlib
 from collections import defaultdict, deque
 from pathlib import Path
+from typing import Literal
 from pydantic import BaseModel, Field
 import httpx
 import anyio
@@ -123,6 +124,7 @@ class BodyLimitMiddleware:
 
 
 class SessionRequest(BaseModel):
+    noise_reduction: Literal["near_field", "far_field"] = "near_field"
     target_language: str = Field(default="en", max_length=10)
     instructions: str | None = Field(default=None, max_length=MAX_INSTRUCTIONS_LEN)
 
@@ -169,14 +171,14 @@ def _resolve_target_language(target_language: str) -> str:
     return lang
 
 
-def _build_session_config(target_language: str) -> dict:
+def _build_session_config(target_language: str, noise_reduction: str = "near_field") -> dict:
     return {
         "session": {
             "model": REALTIME_MODEL,
             "audio": {
                 "input": {
                     "transcription": {"model": INPUT_TRANSCRIPTION_MODEL},
-                    "noise_reduction": {"type": "near_field"},
+                    "noise_reduction": {"type": noise_reduction},
                 },
                 "output": {"language": target_language},
             },
@@ -234,7 +236,7 @@ async def create_realtime_session(req: SessionRequest, request: Request):
         )
 
     target_language = _resolve_target_language(req.target_language)
-    session_config = _build_session_config(target_language)
+    session_config = _build_session_config(target_language, req.noise_reduction)
     headers = _openai_headers(api_key)
     instructions = (req.instructions or "").strip()[:MAX_INSTRUCTIONS_LEN]
 

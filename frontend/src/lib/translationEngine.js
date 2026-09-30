@@ -191,7 +191,7 @@ export class TranslationEngine {
     const res = await fetch(`${this.apiBase}/realtime-session`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...operatorHeaders() },
-      body: JSON.stringify({ target_language: this.targetLanguage, instructions: this.instructions }),
+      body: JSON.stringify({ target_language: this.targetLanguage, instructions: this.instructions, noise_reduction: this.ambient ? "far_field" : "near_field" }),
     });
     if (!res.ok) {
       let detail = "";

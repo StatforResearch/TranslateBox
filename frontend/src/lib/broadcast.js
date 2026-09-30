@@ -12,7 +12,7 @@ export class OperatorBroadcaster {
       }
       const ws = this.ws = new WebSocket(this.wsUrl);
       let ready = false;
-      const fail = (message) => { clearTimeout(timer); this.stop(); reject(new Error(message)); };
+      const fail = (message) => { clearTimeout(timer); this.stop(); this.onStatus({live: false, error: message}); reject(new Error(message)); };
       const timer = setTimeout(() => fail('Broadcast connection timed out'), 10000);
       ws.onopen = () => ws.send(JSON.stringify({ type: 'auth', token: this.token }));
       ws.onmessage = ({ data }) => {
@@ -27,6 +27,7 @@ export class OperatorBroadcaster {
                 ws.send(chunk);
               }
             };
+            this.recorder.onerror = () => fail('Audio recording failed. Restart the broadcast.');
             this.recorder.start(250);
             ready = true; clearTimeout(timer); resolve();
           } catch (error) { fail(error.message); }
@@ -37,7 +38,7 @@ export class OperatorBroadcaster {
       ws.onclose = ({ code }) => {
         clearTimeout(timer);
         this.stop();
-        this.onStatus({ live: false });
+        this.onStatus({ live: false, error: ready ? 'Broadcast connection lost. Restart the broadcast.' : undefined });
         if (!ready) reject(new Error(`Broadcast rejected (${code})`));
       };
     });
