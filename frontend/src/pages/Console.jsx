@@ -22,7 +22,7 @@ export default function Console() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-[#0A0D14] text-slate-900 dark:text-slate-100 font-sans">
+    <div className="tb-console min-h-screen bg-slate-100 dark:bg-[#0A0D14] text-slate-900 dark:text-slate-100 font-sans">
       <Header />
 
       {fullscreen && (
@@ -36,6 +36,10 @@ export default function Console() {
       )}
 
       <main className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-8 space-y-5">
+        <section className="tb-console-hero">
+          <div><span className="tb-eyebrow">VOTRE ESPACE DE DIFFUSION</span><h2>Faites entendre votre message.<br /><em>Dans leur langue.</em></h2><p>Préparez le son, choisissez la langue et invitez votre public.</p></div>
+          <span className="tb-session-badge">{active ? '● Session en cours' : '○ Prêt pour votre prochain direct'}</span>
+        </section>
         <SetupChecklist />
         <AudioControlCard />
 

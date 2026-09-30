@@ -61,14 +61,18 @@ export default function Debug() {
           <Field label="Reconnect Attempts" value={status.reconnectCount ?? 0} />
           <Field label="WebRTC (PC) State" value={metrics.pcState || "—"} />
           <Field label="ICE Connection State" value={metrics.iceState || "—"} />
-          <Field label="Last Latency" value={metrics.latencyMs ? `${metrics.latencyMs} ms` : "—"} />
-          <Field label="Est. Avg Latency" value={metrics.avgLatencyMs ? `${metrics.avgLatencyMs} ms` : "—"} />
+          <Field label="Dernier écart texte" value={metrics.latencyMs ? `${metrics.latencyMs} ms` : "—"} />
+          <Field label="Écart texte moyen" value={metrics.avgLatencyMs ? `${metrics.avgLatencyMs} ms` : "—"} />
           <Field label="Instructions Applied" value={metrics.instructionsApplied ? "yes" : "no"} />
           <Field label="Capture Source" value={captureSource} />
           <Field label="Input Device" value={deviceLabel} />
           <Field label="Last Error" value={error ? "yes" : "none"} />
         </div>
 
+        <p className="text-sm text-slate-400">L’écart entre transcriptions ne mesure pas le délai audio. Les mesures WebRTC ci-dessous concernent OpenAI → Mac, pas le relais vers le téléphone. Les pourcentages portent sur les deux dernières secondes ; — signifie indisponible.</p>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {[["Paquets perdus", "packetLossPct", "%"], ["Gigue réseau", "jitterMs", "ms"], ["Audio reconstitué", "concealedPct", "%"], ["Tampon audio", "jitterBufferMs", "ms"], ["Aller-retour réseau", "rttMs", "ms"]].map(([label, key, unit]) => <Field key={key} label={label} value={Number.isFinite(metrics[key]) ? `${metrics[key].toFixed(1)} ${unit}` : "—"} />)}
+        </div>
         {/* Tabs */}
         <div className="flex items-center gap-2">
           {["logs", "events"].map((t) => (

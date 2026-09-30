@@ -16,6 +16,8 @@ export class TranslationEngine {
     this.active = false;
     this._generation = 0;
     this._inputMuted = false;
+    this._statsTimer = null;
+    this._disconnectTimer = null;
     this.deviceId = null;
     this.captureSource = "mic";
     this.ambient = false;
@@ -105,8 +107,8 @@ export class TranslationEngine {
         stream.getTracks().forEach((t) => t.stop());
         throw new Error('NO_AUDIO_INPUT::No tab/screen audio was shared. Re-share and enable "Share tab audio".');
       }
-      // We only need audio; stop the video track to save resources.
-      stream.getVideoTracks().forEach((t) => t.stop());
+      // Keep the capture session alive; only audio is sent to the peer.
+      // All tracks, including video, are released on stop.
       return stream;
     }
     let stream;
@@ -267,12 +269,15 @@ export class TranslationEngine {
 
     const pc = new RTCPeerConnection();
     this.pc = pc;
+    this._startStats(pc);
 
     pc.oniceconnectionstatechange = () => {
       this.log("debug", "ICE connection state: " + pc.iceConnectionState);
       this.h.onMetrics?.({ iceState: pc.iceConnectionState });
     };
     pc.onconnectionstatechange = () => {
+      if (this.pc !== pc) return;
+      clearTimeout(this._disconnectTimer);
       const st = pc.connectionState;
       this.log("info", "PeerConnection state: " + st);
       this.h.onMetrics?.({ pcState: st });
@@ -286,8 +291,8 @@ export class TranslationEngine {
         // Transient blips shouldn't tear down the stream (which cuts audio).
         // Only reconnect if it hasn't recovered after a short grace period.
         this.setStatus({ network: "degraded" });
-        setTimeout(() => {
-          if (this.active && this.pc && (this.pc.connectionState === "disconnected" || this.pc.connectionState === "failed")) {
+        this._disconnectTimer = setTimeout(() => {
+          if (this.active && this.pc === pc && (this.pc.connectionState === "disconnected" || this.pc.connectionState === "failed")) {
             this._handleDrop();
           }
         }, 4000);
@@ -295,6 +300,7 @@ export class TranslationEngine {
     };
 
     pc.ontrack = (ev) => {
+      if (this.pc !== pc) return;
       this.log("info", "Remote translated audio track received");
       if (this.audioEl) {
         this.audioEl.srcObject = ev.streams[0];
@@ -335,6 +341,44 @@ export class TranslationEngine {
     await pc.setRemoteDescription({ type: "answer", sdp: answer });
     this.log("info", "SDP answer applied — establishing stream");
     this.setStatus({ openai: "connected" });
+  }
+
+  _startStats(pc) {
+    clearTimeout(this._statsTimer);
+    let previous = null;
+    const empty = { packetLossPct: null, jitterMs: null, concealedPct: null, jitterBufferMs: null, rttMs: null };
+    this.h.onMetrics?.(empty);
+    const sample = async () => {
+      if (!this.active || this.pc !== pc) return;
+      try {
+        const report = await pc.getStats();
+        if (!this.active || this.pc !== pc) return;
+        let inbound;
+        let pair;
+        report.forEach(s => {
+          if (s.type === "inbound-rtp" && (s.kind === "audio" || s.mediaType === "audio")) inbound = s;
+          if (s.type === "transport" && s.selectedCandidatePairId) pair = report.get(s.selectedCandidatePairId);
+        });
+        const metrics = { ...empty };
+        if (Number.isFinite(pair?.currentRoundTripTime)) metrics.rttMs = pair.currentRoundTripTime * 1000;
+        if (inbound) {
+          if (Number.isFinite(inbound.jitter)) metrics.jitterMs = inbound.jitter * 1000;
+          if (previous?.id === inbound.id) {
+            const delta = key => Number.isFinite(inbound[key]) && Number.isFinite(previous[key]) && inbound[key] >= previous[key] ? inbound[key] - previous[key] : null;
+            const received = delta("packetsReceived"), lost = delta("packetsLost");
+            if (received !== null && lost !== null && received + lost > 0) metrics.packetLossPct = lost / (received + lost) * 100;
+            const concealed = delta("concealedSamples"), samples = delta("totalSamplesReceived");
+            if (concealed !== null && samples > 0) metrics.concealedPct = concealed / samples * 100;
+            const delay = delta("jitterBufferDelay"), emitted = delta("jitterBufferEmittedCount");
+            if (delay !== null && emitted > 0) metrics.jitterBufferMs = delay / emitted * 1000;
+          }
+          previous = { ...inbound };
+        } else previous = null;
+        this.h.onMetrics?.(metrics);
+      } catch { /* Some browsers do not expose these statistics. */ }
+      if (this.active && this.pc === pc) this._statsTimer = setTimeout(sample, 2000);
+    };
+    this._statsTimer = setTimeout(sample, 2000);
   }
 
   _resetSegment() {
@@ -432,6 +476,8 @@ export class TranslationEngine {
   }
 
   _teardownPc() {
+    clearTimeout(this._statsTimer);
+    clearTimeout(this._disconnectTimer);
     if (this.audioEl) this.audioEl.srcObject = null;
     if (this.dc) {
       try {

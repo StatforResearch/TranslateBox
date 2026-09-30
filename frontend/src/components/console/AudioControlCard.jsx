@@ -9,7 +9,7 @@ import { SOURCE_LANGUAGES, TARGET_LANGUAGES } from "../../lib/languages";
 export const AudioControlCard = () => {
   const {
     active, sourceLang, setSourceLang, targetLang, setTargetLang,
-    devices, selectedDevice, setSelectedDevice,
+    devices, selectedDevice, setSelectedDevice, captureSource, setCaptureSource,
     outputDevices, selectedOutput, setOutputDevice, outputSupported,
     ambientMode, setAmbientMode, level, testing, testInput, stopTest,
   } = useTranslationSession();
@@ -29,10 +29,20 @@ export const AudioControlCard = () => {
         </div>
       </div>
 
+      <p className="text-sm text-slate-500">Voix adaptée au locuteur : le modèle de traduction actuel ajuste le timbre à la voix source et ne propose pas de sélection de voix fixe.</p>
+      <div>
+        <label htmlFor="capture-source" className="text-sm font-semibold">Source audio</label>
+        <select id="capture-source" value={captureSource} disabled={active || testing} onChange={e => setCaptureSource(e.target.value)} className="ml-3 rounded-lg border p-2 bg-white dark:bg-slate-900">
+          <option value="mic">Microphone · salle / enceinte</option>
+          <option value="display">Audio d’un onglet · vidéo sur ce Mac</option>
+        </select>
+        {captureSource === 'display' && <p className="mt-2 text-sm text-slate-500">Ouvrez la vidéo et cette console dans Chrome. Au démarrage, choisissez l’onglet de la vidéo et cochez Partager l’audio. Ne sélectionnez pas la console de traduction.</p>}
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr_auto] gap-3 md:gap-4 items-end pt-1 border-t border-slate-100 dark:border-slate-800/60">
         <div className="pt-3">
           <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 font-mono">Audio input</p>
-          <select data-testid="audio-device-select" value={selectedDevice} disabled={active} onChange={(e) => setSelectedDevice(e.target.value)}
+          <select data-testid="audio-device-select" value={selectedDevice} disabled={active || captureSource === "display"} onChange={(e) => setSelectedDevice(e.target.value)}
             className="mt-1.5 w-full h-11 rounded-lg bg-slate-100 dark:bg-[#0F1623] border border-slate-300 dark:border-slate-700 px-3 text-sm font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60">
             {devices.length === 0 && <option value="">Default microphone</option>}
             {devices.map((d, i) => (<option key={d.deviceId || i} value={d.deviceId}>{d.label || `Microphone ${i + 1}`}</option>))}

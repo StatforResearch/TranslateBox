@@ -5,8 +5,8 @@ export const useTheme = () => useContext(ThemeCtx);
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
-    if (typeof window === "undefined") return "dark";
-    return localStorage.getItem("tbl-theme") || "dark";
+    if (typeof window === "undefined") return "light";
+    return localStorage.getItem("tbl-theme") || "light";
   });
 
   useEffect(() => {

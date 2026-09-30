@@ -24,6 +24,8 @@ export default function Listener() {
   const sbRef = useRef(null);
   const queueRef = useRef([]);
   const retryRef = useRef(null);
+  const alignedRef = useRef(false);
+  const bufferingRef = useRef(true);
 
   const wantedRef = useRef(false);
   const objectUrlRef = useRef(null);
@@ -47,6 +49,8 @@ export default function Listener() {
     sbRef.current = null;
     msRef.current = null;
     queueRef.current = [];
+    alignedRef.current = false;
+    bufferingRef.current = true;
   }, []);
 
   const stop = useCallback(() => {
@@ -101,11 +105,27 @@ export default function Listener() {
         sbRef.current = sb;
         sb.addEventListener("updateend", () => {
           if (sbRef.current !== sb) return;
-          // Late listeners start near the live edge, not at the cached header timestamp.
-          if (sb.buffered.length && audioRef.current) {
-            const end = sb.buffered.end(sb.buffered.length - 1);
-            if (end - audioRef.current.currentTime > 3) audioRef.current.currentTime = Math.max(0, end - 0.5);
-            if (!pausedRef.current) audioRef.current.play().catch(() => {});
+          // Align only on joining. Repeated jumps to live drop spoken words.
+          const audio = audioRef.current;
+          if (sb.buffered.length && audio && !pausedRef.current) {
+            const last = sb.buffered.length - 1;
+            const start = sb.buffered.start(last);
+            const end = sb.buffered.end(last);
+            if (!alignedRef.current && end - start >= 1) {
+              audio.currentTime = Math.max(start, end - 1);
+              alignedRef.current = true;
+            }
+            let ahead = 0;
+            for (let i = 0; i < sb.buffered.length; i++) {
+              if (audio.currentTime >= sb.buffered.start(i) && audio.currentTime <= sb.buffered.end(i)) {
+                ahead = sb.buffered.end(i) - audio.currentTime;
+                break;
+              }
+            }
+            if (alignedRef.current && bufferingRef.current && ahead >= 1) {
+              bufferingRef.current = false;
+              audio.play().catch(() => setErr("Press play to enable audio."));
+            }
           }
           pump();
         });
@@ -125,7 +145,7 @@ export default function Listener() {
         try {
           const m = JSON.parse(data);
           if (m.type === "status") {
-            setConn("connected"); setLive(m.live);
+            setConn("connected"); setLive(m.live); setErr("");
             // A new recorder has a new WebM header; reconnect to a fresh MediaSource.
             if (wasLive && !m.live) { ws.close(); return; }
             wasLive = m.live;
@@ -140,7 +160,7 @@ export default function Listener() {
     };
     ws.onclose = ({code}) => {
       if (wsRef.current !== ws) return;
-      release(); setConn("disconnected");
+      release(); setConn("disconnected"); setLive(false);
       const messages = {4401: "Incorrect PIN.", 4403: "This site is not allowed by the server.", 4429: "Event capacity or connection limit reached. Try again shortly.", 4404: "Event not found."};
       if (messages[code]) {
         setErr(messages[code]); if (code === 4401) setNeedPin(true);
@@ -225,7 +245,12 @@ export default function Listener() {
           </div>
         )}
         {err && <p className="mt-4 text-rose-400 text-sm font-mono" data-testid="listener-error">{err}</p>}
-        <audio ref={audioRef} playsInline />
+        <audio ref={audioRef} playsInline onWaiting={() => {
+          if (wantedRef.current && !pausedRef.current) {
+            bufferingRef.current = true;
+            audioRef.current?.pause();
+          }
+        }} />
         <p className="mt-10 text-[11px] text-slate-600 font-mono">No account needed · audio is not recorded</p>
       </div>
     </Shell>
@@ -233,7 +258,7 @@ export default function Listener() {
 }
 
 const Shell = ({ children }) => (
-  <div className="min-h-screen bg-[#0A0D14] text-slate-100 font-sans flex items-center justify-center p-6"
+  <div className="tb-listener min-h-screen bg-[#0A0D14] text-slate-100 font-sans flex items-center justify-center p-6"
     style={{ backgroundImage: "radial-gradient(1000px 500px at 50% -10%, rgba(16,185,129,0.10), transparent 60%)" }}>
     {children}
   </div>

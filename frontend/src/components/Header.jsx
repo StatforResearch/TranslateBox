@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Sun, Moon, Download, Bug } from "lucide-react";
+import { Sun, Moon, Download, Bug, AudioLines } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 
 export const Header = () => {
@@ -41,13 +41,13 @@ export const Header = () => {
       className="sticky top-0 z-50 h-16 md:h-20 bg-slate-50/80 dark:bg-[#0A0D14]/70 backdrop-blur-xl border-b border-slate-200/70 dark:border-white/10 px-4 md:px-8 flex items-center justify-between"
     >
       <div className="flex items-center gap-3">
-        <img src="/icons/icon-192.png" alt="" className="h-9 w-9 md:h-11 md:w-11 rounded-xl ring-1 ring-white/10" />
+        <AudioLines className="tb-brand-icon" aria-hidden="true" />
         <div className="flex flex-col leading-tight">
           <h1 className="text-lg md:text-2xl font-extrabold tracking-tight uppercase font-mono text-slate-900 dark:text-slate-50">
-            TranslateBox Live
+            TranslateBox
           </h1>
           <span className="hidden sm:flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.25em] text-emerald-600 dark:text-emerald-400 font-mono">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_2px_rgba(16,185,129,0.5)] animate-pulse" /> Live Pro Console
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_2px_rgba(16,185,129,0.5)] animate-pulse" /> Votre studio de traduction
           </span>
         </div>
       </div>

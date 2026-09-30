@@ -45,7 +45,7 @@ export const TransportControls = () => {
         </div>
         <div className="text-right">
           <div data-testid="session-timer-display" className="text-xl font-mono font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums">{fmt(duration)}</div>
-          <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400" data-testid="latency-display">~{latency} latency</div>
+          <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400" title="Écart entre transcriptions, pas le délai audio" data-testid="latency-display">~{latency} écart texte</div>
         </div>
       </div>
     </section>
