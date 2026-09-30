@@ -59,3 +59,19 @@ test('buffers on join and never skips words to catch up during playback', async 
   fireEvent.waiting(audio);ranges=[[20,22.5]];act(()=>updated());expect(play).toHaveBeenCalledTimes(1);
   ranges=[[20,23.5]];act(()=>updated());expect(play).toHaveBeenCalledTimes(2);expect(audio.currentTime).toBe(22);
 });
+
+test('listener distinguishes buffering, playback and reconnection, and resizes captions without reconnecting', async () => {
+  const {container} = render(<MemoryRouter initialEntries={['/e/test']}><Routes><Route path="/e/:id" element={<Listener/>}/></Routes></MemoryRouter>);
+  await screen.findByText('Test event');
+  fireEvent.click(screen.getByText('LISTEN'));
+  act(() => sockets[0].onmessage({data: JSON.stringify({type:'status', live:true})}));
+  expect(screen.getByTestId('listener-status').textContent).toContain('Buffering audio');
+  fireEvent.playing(container.querySelector('audio'));
+  expect(screen.getByTestId('listener-status').textContent).toContain('Translation playing');
+  act(() => sockets[0].onmessage({data: JSON.stringify({type:'caption', text:'Bonjour à tous'})}));
+  fireEvent.change(screen.getByLabelText('Caption size'), {target:{value:'32'}});
+  expect(screen.getByTestId('listener-caption').style.fontSize).toBe('32px');
+  expect(sockets.length).toBe(1);
+  act(() => sockets[0].onclose({code:1006}));
+  expect(screen.getByTestId('listener-status').textContent).toContain('Reconnecting');
+});

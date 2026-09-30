@@ -33,6 +33,20 @@ export default function Debug() {
     if (evtRef.current) evtRef.current.scrollTop = evtRef.current.scrollHeight;
   }, [rawEvents, tab]);
 
+  const exportDiagnostics = () => {
+    // Explicit allowlist: exclude logs, transcripts, device labels, URLs and credentials.
+    const safeMetrics = {};
+    for (const key of ["packetLossPct", "jitterMs", "concealedPct", "jitterBufferMs", "rttMs", "latencyMs", "avgLatencyMs"]) {
+      safeMetrics[key] = Number.isFinite(metrics[key]) ? metrics[key] : null;
+    }
+    const report = { capturedAt: new Date().toISOString(), active, durationSeconds: duration,
+      reconnectAttempts: status.reconnectCount ?? 0, captureSource, metrics: safeMetrics,
+      scope: "OpenAI to operator browser only. Text gap is not audio latency. No listener measurements included." };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], {type: "application/json"}));
+    const link = document.createElement("a"); link.href = url; link.download = "translatebox-diagnostics.json"; link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
   const deviceLabel = devices.find((d) => d.deviceId === selectedDevice)?.label || "Default";
 
   return (
@@ -52,6 +66,8 @@ export default function Debug() {
             <ArrowLeft className="h-4 w-4" />{t("Console")}</Link>
         </div>
 
+        <button onClick={exportDiagnostics} className="rounded-lg border border-slate-600 px-4 py-3 text-sm">{t("Download diagnostic snapshot")}</button>
+        <p className="text-xs text-slate-400">{t("Contains technical measurements only. No transcripts, access codes or audio. Download during an interruption for comparison.")}</p>
         {/* State grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Field label={t("Session Active")} value={active ? "TRUE" : "FALSE"} ok={active} />

@@ -63,6 +63,7 @@ export const AudioControlCard = () => {
         </div>
       </div>
 
+      <details className="pt-3"><summary className="cursor-pointer font-semibold text-sm">{t("Advanced audio settings")}</summary>
       <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr] gap-3 md:gap-4 items-start pt-3 border-t border-slate-100 dark:border-slate-800/60">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 font-mono">{t("Output · headphones")}</p>
@@ -80,6 +81,7 @@ export const AudioControlCard = () => {
           </label>
         </div>
       </div>
+      </details>
     </section>
   );
 };

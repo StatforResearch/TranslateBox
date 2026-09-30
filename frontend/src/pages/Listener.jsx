@@ -19,6 +19,10 @@ export default function Listener() {
   const [live, setLive] = useState(false);
   const [conn, setConn] = useState("idle");
   const [caption, setCaption] = useState("");
+  const [captionSize, setCaptionSize] = useState(() => {
+    try { const size = Number(localStorage.getItem('tbl-caption-size')); return [18, 24, 32].includes(size) ? size : 24; } catch { return 24; }
+  });
+  const [playback, setPlayback] = useState("idle");
   const [volume, setVolume] = useState(1);
 
   const audioRef = useRef(null);
@@ -61,6 +65,7 @@ export default function Listener() {
     release();
     setListening(false);
     setConn("idle");
+    setPlayback("idle");
   }, [release]);
 
   useEffect(() => {
@@ -97,6 +102,7 @@ export default function Listener() {
       wantedRef.current = false; setListening(false); return;
     }
     setConn("connecting");
+    setPlayback("buffering");
     const ms = new MediaSource();
     msRef.current = ms;
     objectUrlRef.current = URL.createObjectURL(ms);
@@ -189,12 +195,12 @@ export default function Listener() {
   };
 
   if (err && !info) {
-    return <Shell><p className="text-rose-400 font-mono">{err}</p></Shell>;
+    return <Shell><p className="text-rose-400 font-mono">{t(err)}</p></Shell>;
   }
 
   return (
     <Shell>
-      <div className="w-full max-w-md text-center">
+      <div className="w-full max-w-md text-center pt-12">
         <p className="text-xs font-mono uppercase tracking-[0.35em] text-emerald-400 mb-6">TranslateBox</p>
         <h1 className="text-2xl font-extrabold text-slate-50">{info?.name || t("Live Interpretation")}</h1>
         {info?.organization && <p className="text-slate-400 mt-1">{info.organization}</p>}
@@ -206,9 +212,9 @@ export default function Listener() {
           </span>
         </div>
 
-        <div className="flex items-center justify-center gap-2 mb-6" data-testid="listener-status">
+        <div className="flex items-center justify-center gap-2 mb-6" data-testid="listener-status" role="status" aria-live="polite">
           <span className={`h-2.5 w-2.5 rounded-full ${live ? "bg-emerald-400 shadow-[0_0_10px_2px_rgba(16,185,129,0.6)] animate-pulse" : "bg-slate-600"}`} />
-          <span className="text-xs font-mono uppercase tracking-widest text-slate-400">{live ? t("Live") : t("Waiting for speaker…")}</span>
+          <span className="text-xs font-mono uppercase tracking-widest text-slate-400">{t(!listening ? (live ? "Ready to listen" : "Waiting for speaker…") : conn === "disconnected" ? "Reconnecting…" : conn === "connecting" ? "Connecting…" : paused ? "Audio paused" : !live ? "Waiting for speaker…" : playback === "playing" ? "Translation playing" : "Buffering audio…")}</span>
         </div>
 
         {needPin && !listening && (
@@ -234,25 +240,37 @@ export default function Listener() {
             </div>
             <div className="flex items-center justify-center gap-2 text-xs font-mono uppercase tracking-widest text-slate-500" data-testid="listener-conn">
               {conn === "connected" ? <Wifi className="h-4 w-4 text-emerald-400" /> : <WifiOff className="h-4 w-4 text-amber-400" />}
-              {conn}
+              {t({connected: "Connected", disconnected: "Reconnecting…", connecting: "Connecting…", idle: "Stopped"}[conn])}
             </div>
             {!live && conn === "connected" && (
               <p className="text-amber-400 text-sm font-mono">{t("Translation temporarily unavailable — resuming automatically…")}</p>
             )}
+            <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
+              {t("Caption size")}
+              <select aria-label={t("Caption size")} className="rounded-lg bg-slate-800 px-3 py-2" value={captionSize} onChange={e => {
+                const size = Number(e.target.value); setCaptionSize(size);
+                try { localStorage.setItem('tbl-caption-size', String(size)); } catch { /* Optional preference storage. */ }
+              }}>
+                <option value={18}>{t("Standard")}</option><option value={24}>{t("Large")}</option><option value={32}>{t("Extra large")}</option>
+              </select>
+            </label>
+            {!caption && <p className="text-sm text-slate-300">{t("Captions appear here when the organizer enables them.")}</p>}
             {caption && (
-              <div data-testid="listener-caption" className="mt-4 rounded-xl bg-white/5 border border-white/10 p-4 text-left text-lg leading-relaxed text-slate-100 max-h-52 overflow-y-auto whitespace-pre-wrap">
+              <div style={{fontSize: `${captionSize}px`}} data-testid="listener-caption" className="mt-4 rounded-xl bg-white/5 border border-white/10 p-4 text-left text-lg leading-relaxed text-slate-100 max-h-52 overflow-y-auto whitespace-pre-wrap">
                 {caption}
               </div>
             )}
           </div>
         )}
-        {err && <p className="mt-4 text-rose-400 text-sm font-mono" data-testid="listener-error">{err}</p>}
-        <audio ref={audioRef} playsInline onWaiting={() => {
+        {err && <p className="mt-4 text-rose-400 text-sm font-mono" data-testid="listener-error">{t(err)}</p>}
+        <audio ref={audioRef} playsInline onPlaying={() => { setPlayback("playing"); setErr(""); }} onWaiting={() => {
           if (wantedRef.current && !pausedRef.current) {
             bufferingRef.current = true;
+            setPlayback("buffering");
             audioRef.current?.pause();
           }
         }} />
+        <p className="mt-6 text-sm text-slate-300">{t("Connect your headphones before listening. If your phone interrupts playback when locked, keep this page open.")}</p>
         <p className="mt-10 text-[11px] text-slate-600 font-mono">{t("No account needed · audio is not recorded")}</p>
       </div>
     </Shell>

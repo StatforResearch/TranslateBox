@@ -18,6 +18,7 @@ export const BroadcastPanel = () => {
   const [qr, setQr] = useState("");
   const [fs, setFs] = useState(false);
   const [error, setError] = useState("");
+  const [copyStatus, setCopyStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const listenUrl = eventInfo ? `${window.location.origin}/e/${eventInfo.id}` : "";
 
@@ -53,6 +54,7 @@ export const BroadcastPanel = () => {
           </ul>
         </div>
       )}
+      {!eventInfo && <p id="share" className="scroll-mt-24 text-sm text-slate-500">{t("Create an event to get its listener link and QR code.")}</p>}
       {!eventInfo ? (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <input aria-label={t("Event name")} maxLength={200} data-testid="event-name-input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t("Event name")} className="h-11 rounded-lg bg-slate-100 dark:bg-[#0F1623] border border-slate-300 dark:border-slate-700 px-3 text-sm dark:text-slate-100" />
@@ -63,12 +65,19 @@ export const BroadcastPanel = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-4 items-center">
           {qr && <img data-testid="event-qr" src={qr} alt="QR" className="h-28 w-28 rounded-lg bg-white p-1.5" />}
-          <div className="min-w-0 space-y-2">
+          <div className="min-w-0 space-y-2 scroll-mt-24" id="share">
+            <h3 className="font-bold">3 · {t("Share and go live")}</h3>
             <p className="font-semibold">{eventInfo.name} · {eventInfo.target.toUpperCase()}</p>
             <button onClick={newEvent} disabled={busy || active || broadcasting} className="text-sm underline disabled:opacity-40">{t("Choose another event / New event")}</button>
             <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400">{t("Scan to listen")}</p>
             <a data-testid="event-listen-url" href={listenUrl} target="_blank" rel="noreferrer" className="block text-sm font-mono text-emerald-600 dark:text-emerald-400 truncate">{listenUrl}</a>
             {['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) && <p className="text-sm text-amber-600 dark:text-amber-400">{t("Local link: this QR code only works on this computer. Use an accessible HTTPS address for phones and other listeners.")}</p>}
+            <button className="rounded-lg border px-4 py-2 text-sm font-semibold" onClick={async () => {
+              try { await navigator.clipboard.writeText(listenUrl); setCopyStatus("Link copied"); }
+              catch { setCopyStatus("Copy the event link above manually."); }
+            }}>{t("Copy listener link")}</button>
+            <p role="status" className="text-sm text-slate-500">{t(copyStatus)}</p>
+            <p className="text-sm text-slate-500">{t("Share only this link and the event PIN with listeners. Keep your operator code private.")}</p>
             <div className="flex flex-wrap gap-2 pt-1">
               {!broadcasting ? (
                 <button data-testid="start-event-button" onClick={doStart} disabled={busy} className="flex items-center gap-2 px-5 h-11 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-[0_0_25px_rgba(16,185,129,0.3)] disabled:opacity-50"><Play className="h-5 w-5 fill-white" />{t("START EVENT")}</button>

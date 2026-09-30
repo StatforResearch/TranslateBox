@@ -1379,5 +1379,129 @@ export const messages = {
   "Détectée": {
     "en": "Detected",
     "fr": "Détectée"
+  },
+  "Session steps": {
+    "en": "Session steps",
+    "fr": "Étapes de la session"
+  },
+  "Prepare audio": {
+    "en": "Prepare audio",
+    "fr": "Préparer le son"
+  },
+  "Create an event": {
+    "en": "Create an event",
+    "fr": "Créer un événement"
+  },
+  "Share and go live": {
+    "en": "Share and go live",
+    "fr": "Partager et diffuser"
+  },
+  "Ready": {
+    "en": "Ready",
+    "fr": "Prêt"
+  },
+  "Open": {
+    "en": "Open",
+    "fr": "Ouvrir"
+  },
+  "Advanced audio settings": {
+    "en": "Advanced audio settings",
+    "fr": "Réglages audio avancés"
+  },
+  "Copy listener link": {
+    "en": "Copy listener link",
+    "fr": "Copier le lien auditeur"
+  },
+  "Link copied": {
+    "en": "Link copied",
+    "fr": "Lien copié"
+  },
+  "Copy the event link above manually.": {
+    "en": "Copy the event link above manually.",
+    "fr": "Copiez manuellement le lien ci-dessus."
+  },
+  "Share only this link and the event PIN with listeners. Keep your operator code private.": {
+    "en": "Share only this link and the event PIN with listeners. Keep your operator code private.",
+    "fr": "Partagez uniquement ce lien et le PIN de l’événement avec les auditeurs. Gardez votre code opérateur privé."
+  },
+  "Create an event to get its listener link and QR code.": {
+    "en": "Create an event to get its listener link and QR code.",
+    "fr": "Créez un événement pour obtenir son lien auditeur et son QR code."
+  },
+  "Ready to listen": {
+    "en": "Ready to listen",
+    "fr": "Prêt à écouter"
+  },
+  "Reconnecting…": {
+    "en": "Reconnecting…",
+    "fr": "Reconnexion…"
+  },
+  "Audio paused": {
+    "en": "Audio paused",
+    "fr": "Audio en pause"
+  },
+  "Translation playing": {
+    "en": "Translation playing",
+    "fr": "Lecture de la traduction"
+  },
+  "Buffering audio…": {
+    "en": "Buffering audio…",
+    "fr": "Chargement de l’audio…"
+  },
+  "Connected": {
+    "en": "Connected",
+    "fr": "Connecté"
+  },
+  "Stopped": {
+    "en": "Stopped",
+    "fr": "Arrêté"
+  },
+  "Caption size": {
+    "en": "Caption size",
+    "fr": "Taille des sous-titres"
+  },
+  "Standard": {
+    "en": "Standard",
+    "fr": "Normale"
+  },
+  "Large": {
+    "en": "Large",
+    "fr": "Grande"
+  },
+  "Extra large": {
+    "en": "Extra large",
+    "fr": "Très grande"
+  },
+  "Captions appear here when the organizer enables them.": {
+    "en": "Captions appear here when the organizer enables them.",
+    "fr": "Les sous-titres apparaissent ici lorsque l’organisateur les active."
+  },
+  "Connect your headphones before listening. If your phone interrupts playback when locked, keep this page open.": {
+    "en": "Connect your headphones before listening. If your phone interrupts playback when locked, keep this page open.",
+    "fr": "Connectez votre casque avant l’écoute. Si le verrouillage du téléphone interrompt la lecture, gardez cette page ouverte."
+  },
+  "Incorrect PIN.": {
+    "en": "Incorrect PIN.",
+    "fr": "Code PIN incorrect."
+  },
+  "Event not found.": {
+    "en": "Event not found.",
+    "fr": "Événement introuvable."
+  },
+  "Press play to enable audio.": {
+    "en": "Press play to enable audio.",
+    "fr": "Appuyez sur lecture pour activer l’audio."
+  },
+  "Audio interrupted. Reconnecting…": {
+    "en": "Audio interrupted. Reconnecting…",
+    "fr": "Audio interrompu. Reconnexion…"
+  },
+  "Download diagnostic snapshot": {
+    "en": "Download diagnostic snapshot",
+    "fr": "Télécharger le diagnostic instantané"
+  },
+  "Contains technical measurements only. No transcripts, access codes or audio. Download during an interruption for comparison.": {
+    "en": "Contains technical measurements only. No transcripts, access codes or audio. Download during an interruption for comparison.",
+    "fr": "Contient uniquement des mesures techniques. Aucune transcription, aucun code d’accès ni audio. Téléchargez pendant une coupure pour comparer."
   }
 };

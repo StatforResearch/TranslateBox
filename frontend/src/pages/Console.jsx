@@ -12,7 +12,7 @@ import { getTarget, sourceLabel } from "../lib/languages";
 
 export default function Console() {
   const { t } = useLocale();
-  const { sourceText, targetText, error, active, translationMuted, targetLang, sourceLang, clearError } = useTranslationSession();
+  const { sourceText, targetText, error, active, translationMuted, targetLang, sourceLang, clearError, eventInfo, broadcasting } = useTranslationSession();
   const [fullscreen, setFullscreen] = useState(false);
   const tgt = getTarget(targetLang);
 
@@ -42,8 +42,14 @@ export default function Console() {
           <div><span className="tb-eyebrow">{t("VOTRE ESPACE DE DIFFUSION")}</span><h2>{t("Faites entendre votre message.")}<br /><em>{t("Dans leur langue.")}</em></h2><p>{t("Préparez le son, choisissez la langue et invitez votre public.")}</p></div>
           <span className="tb-session-badge">{active ? t("● Session en cours") : t("○ Prêt pour votre prochain direct")}</span>
         </section>
+        <nav aria-label={t("Session steps")} className="tb-session-steps">
+          {[["prepare", "1", "Prepare audio", true], ["event", "2", "Create an event", !!eventInfo], ["share", "3", "Share and go live", broadcasting]].map(([id, number, label, complete]) => <a key={id} href={`#${id}`}><span>{number}</span><strong>{t(label)}</strong><small>{complete && id !== "prepare" ? t("Ready") : t("Open")}</small></a>)}
+        </nav>
+        <section id="prepare" className="scroll-mt-24 space-y-4">
+        <h2 className="font-bold text-lg">1 · {t("Prepare audio")}</h2>
         <SetupChecklist />
         <AudioControlCard />
+        </section>
 
         {error && (
           <div data-testid="error-banner" className="flex items-start gap-3 rounded-xl border border-red-300 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-red-700 dark:text-red-300">
@@ -55,7 +61,10 @@ export default function Console() {
 
         <TransportControls />
 
-        <BroadcastPanel />
+        <section id="event" className="scroll-mt-24 space-y-4">
+          <h2 className="font-bold text-lg">2 · {t("Create an event")}</h2>
+          <BroadcastPanel />
+        </section>
 
         <div className="flex items-center justify-between">
           <span className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-slate-400" data-testid="output-audio-indicator">
