@@ -1,3 +1,4 @@
+import { HomeLink } from './HomeLink';
 import { InterfaceLanguage } from './InterfaceLanguage';
 import { useLocale } from '../context/LocaleContext';
 import React, { useEffect, useState } from "react";
@@ -55,6 +56,7 @@ export const Header = () => {
       </div>
 
       <div className="flex items-center gap-2 md:gap-3">
+        <HomeLink />
         <InterfaceLanguage />
         {deferredPrompt && !installed && (
           <button data-testid="pwa-install-button" onClick={install} className={iconBtn} title={t("Install app")}>

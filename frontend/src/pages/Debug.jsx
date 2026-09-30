@@ -1,3 +1,4 @@
+import { HomeLink } from '../components/HomeLink';
 import { useLocale } from '../context/LocaleContext';
 import { InterfaceLanguage } from '../components/InterfaceLanguage';
 import React, { useEffect, useRef, useState } from "react";
@@ -57,6 +58,7 @@ export default function Debug() {
             <h1 className="text-xl md:text-2xl font-extrabold tracking-wider uppercase">{t("Debug Console")}</h1>
             <p className="text-xs text-slate-500 mt-1">{t("TranslateBox Live — realtime diagnostics")}</p>
           </div>
+          <HomeLink />
           <InterfaceLanguage />
           <Link
             to="/"

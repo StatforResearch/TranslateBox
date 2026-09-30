@@ -1503,5 +1503,13 @@ export const messages = {
   "Contains technical measurements only. No transcripts, access codes or audio. Download during an interruption for comparison.": {
     "en": "Contains technical measurements only. No transcripts, access codes or audio. Download during an interruption for comparison.",
     "fr": "Contient uniquement des mesures techniques. Aucune transcription, aucun code d’accès ni audio. Téléchargez pendant une coupure pour comparer."
+  },
+  "Back to home": {
+    "en": "Back to home",
+    "fr": "Retour à l’accueil"
+  },
+  "Returning home closes this session.": {
+    "en": "Returning home closes this session.",
+    "fr": "Le retour à l’accueil ferme cette session."
   }
 };

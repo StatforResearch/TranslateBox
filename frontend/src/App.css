@@ -70,3 +70,7 @@
 .tb-session-steps strong { font-size:13px; }
 .tb-session-steps small { margin-left:auto; font-size:10px; }
 @media(max-width:640px) { .tb-session-steps { grid-template-columns:1fr; } }
+.tb-home-link { display:inline-flex; align-items:center; justify-content:center; gap:7px; padding:10px 12px; min-height:42px; border:1px solid #b5d1ec80; border-radius:10px; color:#d9eeff; font-size:12px; font-weight:600; }
+.tb-home-link:hover { background:#ffffff15; }
+.tb-home-link:focus-visible { outline:3px solid #38bdf8; outline-offset:3px; }
+@media(max-width:640px) { .tb-console > header { height:auto; flex-wrap:wrap; gap:10px; padding-top:12px; padding-bottom:12px; } .tb-console > header > div:last-child { flex-wrap:wrap; } }

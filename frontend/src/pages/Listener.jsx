@@ -1,3 +1,4 @@
+import { HomeLink } from '../components/HomeLink';
 import { InterfaceLanguage } from '../components/InterfaceLanguage';
 import { useLocale } from '../context/LocaleContext';
 import React, { useEffect, useRef, useState, useCallback } from "react";
@@ -280,7 +281,7 @@ export default function Listener() {
 const Shell = ({ children }) => (
   <div className="tb-listener min-h-screen bg-[#0A0D14] text-slate-100 font-sans flex items-center justify-center p-6"
     style={{ backgroundImage: "radial-gradient(1000px 500px at 50% -10%, rgba(16,185,129,0.10), transparent 60%)" }}>
-    <div className="absolute top-4 right-4"><InterfaceLanguage /></div>
+    <div className="absolute top-4 inset-x-4 flex items-center justify-between gap-3"><HomeLink /><InterfaceLanguage /></div>
     {children}
   </div>
 );
