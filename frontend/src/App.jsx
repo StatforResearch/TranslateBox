@@ -1,3 +1,4 @@
+import { LocaleProvider } from '@/context/LocaleContext';
 import "@/App.css";
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 import { ThemeProvider } from "@/context/ThemeContext";
@@ -10,7 +11,7 @@ import LoadTest from "@/pages/LoadTest";
 
 function App() {
   return (
-    <ThemeProvider>
+    <LocaleProvider><ThemeProvider>
       <BrowserRouter>
           <Routes>
             <Route path="/e/:id" element={<Listener />} />
@@ -22,7 +23,7 @@ function App() {
             <Route path="*" element={<p className="p-8">Page not found. <a href="/">Open TranslateBox</a></p>} />
           </Routes>
       </BrowserRouter>
-    </ThemeProvider>
+    </ThemeProvider></LocaleProvider>
   );
 }
 

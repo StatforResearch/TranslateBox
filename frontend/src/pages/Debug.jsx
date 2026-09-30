@@ -1,3 +1,5 @@
+import { useLocale } from '../context/LocaleContext';
+import { InterfaceLanguage } from '../components/InterfaceLanguage';
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Trash2 } from "lucide-react";
@@ -18,6 +20,7 @@ const Field = ({ label, value, ok }) => (
 );
 
 export default function Debug() {
+  const { t } = useLocale();
   const { status, logs, rawEvents, duration, active, error, selectedDevice, devices, metrics, captureSource } = useTranslationSession();
   const [tab, setTab] = useState("logs");
   const logRef = useRef(null);
@@ -37,54 +40,54 @@ export default function Debug() {
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl md:text-2xl font-extrabold tracking-wider uppercase">Debug Console</h1>
-            <p className="text-xs text-slate-500 mt-1">TranslateBox Live — realtime diagnostics</p>
+            <h1 className="text-xl md:text-2xl font-extrabold tracking-wider uppercase">{t("Debug Console")}</h1>
+            <p className="text-xs text-slate-500 mt-1">{t("TranslateBox Live — realtime diagnostics")}</p>
           </div>
+          <InterfaceLanguage />
           <Link
             to="/"
             data-testid="debug-back-link"
             className="inline-flex items-center gap-2 rounded-lg border border-slate-700 px-4 py-2 text-sm hover:bg-slate-800 transition-colors"
           >
-            <ArrowLeft className="h-4 w-4" /> Console
-          </Link>
+            <ArrowLeft className="h-4 w-4" />{t("Console")}</Link>
         </div>
 
         {/* State grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Field label="Session Active" value={active ? "TRUE" : "FALSE"} ok={active} />
-          <Field label="Session Duration" value={`${duration}s`} />
-          <Field label="Audio Input" value={status.mic} />
-          <Field label="OpenAI Session" value={status.openai} />
-          <Field label="Translation" value={status.translation} />
-          <Field label="Output Audio" value={status.outputAudio || "idle"} />
-          <Field label="Network" value={status.network} />
-          <Field label="Reconnect Attempts" value={status.reconnectCount ?? 0} />
-          <Field label="WebRTC (PC) State" value={metrics.pcState || "—"} />
-          <Field label="ICE Connection State" value={metrics.iceState || "—"} />
-          <Field label="Dernier écart texte" value={metrics.latencyMs ? `${metrics.latencyMs} ms` : "—"} />
-          <Field label="Écart texte moyen" value={metrics.avgLatencyMs ? `${metrics.avgLatencyMs} ms` : "—"} />
-          <Field label="Instructions Applied" value={metrics.instructionsApplied ? "yes" : "no"} />
-          <Field label="Capture Source" value={captureSource} />
-          <Field label="Input Device" value={deviceLabel} />
-          <Field label="Last Error" value={error ? "yes" : "none"} />
+          <Field label={t("Session Active")} value={active ? "TRUE" : "FALSE"} ok={active} />
+          <Field label={t("Session Duration")} value={`${duration}s`} />
+          <Field label={t("Audio Input")} value={status.mic} />
+          <Field label={t("OpenAI Session")} value={status.openai} />
+          <Field label={t("Translation")} value={status.translation} />
+          <Field label={t("Output Audio")} value={status.outputAudio || "idle"} />
+          <Field label={t("Network")} value={status.network} />
+          <Field label={t("Reconnect Attempts")} value={status.reconnectCount ?? 0} />
+          <Field label={t("WebRTC (PC) State")} value={metrics.pcState || "—"} />
+          <Field label={t("ICE Connection State")} value={metrics.iceState || "—"} />
+          <Field label={t("Dernier \u00e9cart texte")} value={metrics.latencyMs ? `${metrics.latencyMs} ms` : "—"} />
+          <Field label={t("\u00c9cart texte moyen")} value={metrics.avgLatencyMs ? `${metrics.avgLatencyMs} ms` : "—"} />
+          <Field label={t("Instructions Applied")} value={metrics.instructionsApplied ? "yes" : "no"} />
+          <Field label={t("Capture Source")} value={captureSource} />
+          <Field label={t("Input Device")} value={deviceLabel} />
+          <Field label={t("Last Error")} value={error ? "yes" : "none"} />
         </div>
 
-        <p className="text-sm text-slate-400">L’écart entre transcriptions ne mesure pas le délai audio. Les mesures WebRTC ci-dessous concernent OpenAI → Mac, pas le relais vers le téléphone. Les pourcentages portent sur les deux dernières secondes ; — signifie indisponible.</p>
+        <p className="text-sm text-slate-400">{t("L’écart entre transcriptions ne mesure pas le délai audio. Les mesures WebRTC ci-dessous concernent OpenAI → Mac, pas le relais vers le téléphone. Les pourcentages portent sur les deux dernières secondes ; — signifie indisponible.")}</p>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          {[["Paquets perdus", "packetLossPct", "%"], ["Gigue réseau", "jitterMs", "ms"], ["Audio reconstitué", "concealedPct", "%"], ["Tampon audio", "jitterBufferMs", "ms"], ["Aller-retour réseau", "rttMs", "ms"]].map(([label, key, unit]) => <Field key={key} label={label} value={Number.isFinite(metrics[key]) ? `${metrics[key].toFixed(1)} ${unit}` : "—"} />)}
+          {[["Paquets perdus", "packetLossPct", "%"], ["Gigue réseau", "jitterMs", "ms"], ["Audio reconstitué", "concealedPct", "%"], ["Tampon audio", "jitterBufferMs", "ms"], ["Aller-retour réseau", "rttMs", "ms"]].map(([label, key, unit]) => <Field key={key} label={t(label)} value={Number.isFinite(metrics[key]) ? `${metrics[key].toFixed(1)} ${unit}` : "—"} />)}
         </div>
         {/* Tabs */}
         <div className="flex items-center gap-2">
-          {["logs", "events"].map((t) => (
+          {["logs", "events"].map((tabKey) => (
             <button
-              key={t}
-              data-testid={`debug-tab-${t}`}
-              onClick={() => setTab(t)}
+              key={tabKey}
+              data-testid={`debug-tab-${tabKey}`}
+              onClick={() => setTab(tabKey)}
               className={`px-4 py-2 rounded-lg text-sm uppercase tracking-wider border transition-colors ${
-                tab === t ? "bg-emerald-600 border-emerald-500 text-white" : "border-slate-700 text-slate-400 hover:bg-slate-800"
+                tab === tabKey ? "bg-emerald-600 border-emerald-500 text-white" : "border-slate-700 text-slate-400 hover:bg-slate-800"
               }`}
             >
-              {t === "logs" ? `WebRTC / Session Log (${logs.length})` : `Realtime Events (${rawEvents.length})`}
+              {tabKey === "logs" ? `${t("WebRTC / Session Log")} (${logs.length})` : `${t("Realtime Events")} (${rawEvents.length})`}
             </button>
           ))}
         </div>
@@ -95,7 +98,7 @@ export default function Debug() {
             data-testid="debug-log-stream"
             className="rounded-xl bg-black/60 border border-slate-800 p-4 h-[52vh] overflow-y-auto text-xs leading-relaxed space-y-1"
           >
-            {logs.length === 0 && <p className="text-slate-600">No log entries yet. Start a session on the console.</p>}
+            {logs.length === 0 && <p className="text-slate-600">{t("No log entries yet. Start a session on the console.")}</p>}
             {logs.map((l, i) => (
               <div key={`${l.ts}-${i}`} className="flex gap-3">
                 <span className="text-slate-600 shrink-0">{l.ts.split("T")[1]?.replace("Z", "")}</span>
@@ -113,7 +116,7 @@ export default function Debug() {
             data-testid="debug-event-stream"
             className="rounded-xl bg-black/60 border border-slate-800 p-4 h-[52vh] overflow-y-auto text-xs leading-relaxed space-y-1"
           >
-            {rawEvents.length === 0 && <p className="text-slate-600">No realtime events captured yet.</p>}
+            {rawEvents.length === 0 && <p className="text-slate-600">{t("No realtime events captured yet.")}</p>}
             {rawEvents.map((r, i) => (
               <div key={`${r.ts}-${i}`} className="flex gap-3">
                 <span className="text-slate-600 shrink-0">{r.ts.split("T")[1]?.replace("Z", "")}</span>

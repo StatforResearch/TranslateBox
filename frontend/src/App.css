@@ -60,3 +60,7 @@
 @media(max-width:800px) { .tb-hero { gap:36px; padding-top:35px; grid-template-columns:1fr; } .tb-intro { max-width:580px; } .tb-access-wrap { max-width:550px; width:100%; margin:auto; } .tb-step-grid { grid-template-columns:1fr; } .tb-console-hero { align-items:flex-start; flex-direction:column; } .tb-nav-link { display:none; } }
 @media(max-width:480px) { .tb-nav { padding:20px; gap:12px; } .tb-brand { font-size:20px; gap:7px; } .tb-brand > svg { width:30px; } .tb-nav-cta { padding:11px; font-size:10px; } .tb-nav-cta svg { display:none; } .tb-hero { padding:25px 20px 45px; } .tb-login { padding:24px; } .tb-preview { margin:0 12px; padding:15px; } .tb-intro h1 { letter-spacing:-1.5px; } }
 @media(prefers-reduced-motion:reduce) { .tb-primary,.tb-nav-cta { transition:none; } }
+.tb-interface-language { border:1px solid #b5d1ec; border-radius:10px; padding:9px 10px; font-size:12px; font-weight:600; background:#fff; color:#142758; cursor:pointer; min-height:40px; max-width:120px; }
+.tb-interface-language:focus-visible { outline:3px solid #38bdf8; outline-offset:3px; }
+.tb-nav { flex-wrap:wrap; }
+@media(max-width:480px) { .tb-nav .tb-brand { margin-right:auto; } .tb-nav .tb-nav-cta { width:100%; } .tb-console > header { height:auto; min-height:64px; flex-wrap:wrap; gap:12px; padding-top:12px; padding-bottom:12px; } }

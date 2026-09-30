@@ -1,9 +1,12 @@
+import { InterfaceLanguage } from './InterfaceLanguage';
+import { useLocale } from '../context/LocaleContext';
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Sun, Moon, Download, Bug, AudioLines } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 
 export const Header = () => {
+  const { t } = useLocale();
   const { theme, toggle } = useTheme();
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [installed, setInstalled] = useState(false);
@@ -47,21 +50,21 @@ export const Header = () => {
             TranslateBox
           </h1>
           <span className="hidden sm:flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.25em] text-emerald-600 dark:text-emerald-400 font-mono">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_2px_rgba(16,185,129,0.5)] animate-pulse" /> Votre studio de traduction
-          </span>
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_2px_rgba(16,185,129,0.5)] animate-pulse" />{t("Votre studio de traduction")}</span>
         </div>
       </div>
 
       <div className="flex items-center gap-2 md:gap-3">
+        <InterfaceLanguage />
         {deferredPrompt && !installed && (
-          <button data-testid="pwa-install-button" onClick={install} className={iconBtn} title="Install app">
+          <button data-testid="pwa-install-button" onClick={install} className={iconBtn} title={t("Install app")}>
             <Download className="h-5 w-5" />
           </button>
         )}
-        <Link data-testid="debug-nav-link" to="/debug" className={iconBtn} title="Debug console">
+        <Link data-testid="debug-nav-link" to="/debug" className={iconBtn} title={t("Debug console")}>
           <Bug className="h-5 w-5" />
         </Link>
-        <button data-testid="theme-toggle-button" onClick={toggle} className={iconBtn} title="Toggle theme">
+        <button data-testid="theme-toggle-button" onClick={toggle} className={iconBtn} title={t("Toggle theme")}>
           {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
         </button>
       </div>

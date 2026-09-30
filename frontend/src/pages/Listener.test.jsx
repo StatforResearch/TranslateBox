@@ -18,7 +18,7 @@ afterEach(() => { cleanup(); vi.useRealTimers(); });
 test('reconnects after the first connection drops and stop cancels retry', async () => {
   render(<MemoryRouter initialEntries={['/e/test']}><Routes><Route path="/e/:id" element={<Listener/>}/></Routes></MemoryRouter>);
   await screen.findByText('Test event');
-  expect(screen.getByText('Français')).toBeTruthy();
+  expect(screen.getByText('Français', {selector: 'span'})).toBeTruthy();
   vi.useFakeTimers();
   fireEvent.click(screen.getByText('LISTEN'));
   expect(sockets.length).toBe(1);

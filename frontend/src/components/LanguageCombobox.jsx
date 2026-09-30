@@ -1,3 +1,4 @@
+import { useLocale } from '../context/LocaleContext';
 import React, { useState } from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
@@ -7,6 +8,7 @@ import { cn } from "../lib/utils";
 // Searchable language selector. `options` = [{code, name, native, flag}].
 export const LanguageCombobox = ({ options, value, onChange, disabled, testId, placeholder = "Select language" }) => {
   const [open, setOpen] = useState(false);
+  const { t } = useLocale();
   const selected = options.find((o) => o.code === value) || options[0];
 
   return (
@@ -39,9 +41,9 @@ export const LanguageCombobox = ({ options, value, onChange, disabled, testId, p
             return val.toLowerCase().includes(search.toLowerCase()) ? 1 : 0;
           }}
         >
-          <CommandInput placeholder="Search language…" data-testid={`${testId}-search`} />
+          <CommandInput placeholder={t("Search language…")} data-testid={`${testId}-search`} />
           <CommandList className="max-h-72">
-            <CommandEmpty>No language found.</CommandEmpty>
+            <CommandEmpty>{t("No language found.")}</CommandEmpty>
             <CommandGroup>
               {options.map((o) => (
                 <CommandItem

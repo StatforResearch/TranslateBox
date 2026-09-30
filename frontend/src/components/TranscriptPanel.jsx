@@ -1,6 +1,8 @@
+import { useLocale } from '../context/LocaleContext';
 import React, { useEffect, useRef } from "react";
 
 export const TranscriptPanel = ({ label, badge, accent, text, active, panelTestId, textTestId }) => {
+  const { t } = useLocale();
   const scrollRef = useRef(null);
   useEffect(() => {
     const el = scrollRef.current;
@@ -50,7 +52,7 @@ export const TranscriptPanel = ({ label, badge, accent, text, active, panelTestI
           </>
         ) : (
           <span className="text-slate-400 dark:text-slate-600 italic text-base">
-            {active ? "Listening…" : "Transcript will appear here once translation starts."}
+            {active ? t("Listening…") : t("Transcript will appear here once translation starts.")}
           </span>
         )}
       </div>

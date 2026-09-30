@@ -1,3 +1,5 @@
+import { InterfaceLanguage } from '../components/InterfaceLanguage';
+import { useLocale } from '../context/LocaleContext';
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { Play, Pause, Volume2, Wifi, WifiOff, Headphones } from "lucide-react";
@@ -7,6 +9,7 @@ import { API } from "../lib/api";
 import { getTarget } from "../lib/languages";
 
 export default function Listener() {
+  const { t } = useLocale();
   const { id } = useParams();
   const [info, setInfo] = useState(null);
   const [err, setErr] = useState("");
@@ -193,7 +196,7 @@ export default function Listener() {
     <Shell>
       <div className="w-full max-w-md text-center">
         <p className="text-xs font-mono uppercase tracking-[0.35em] text-emerald-400 mb-6">TranslateBox</p>
-        <h1 className="text-2xl font-extrabold text-slate-50">{info?.name || "Live Interpretation"}</h1>
+        <h1 className="text-2xl font-extrabold text-slate-50">{info?.name || t("Live Interpretation")}</h1>
         {info?.organization && <p className="text-slate-400 mt-1">{info.organization}</p>}
 
         <div className="mt-8 mb-6 flex items-center justify-center gap-2 text-slate-300">
@@ -205,37 +208,36 @@ export default function Listener() {
 
         <div className="flex items-center justify-center gap-2 mb-6" data-testid="listener-status">
           <span className={`h-2.5 w-2.5 rounded-full ${live ? "bg-emerald-400 shadow-[0_0_10px_2px_rgba(16,185,129,0.6)] animate-pulse" : "bg-slate-600"}`} />
-          <span className="text-xs font-mono uppercase tracking-widest text-slate-400">{live ? "Live" : "Waiting for speaker…"}</span>
+          <span className="text-xs font-mono uppercase tracking-widest text-slate-400">{live ? t("Live") : t("Waiting for speaker…")}</span>
         </div>
 
         {needPin && !listening && (
-          <input data-testid="listener-pin-input" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="Enter event PIN"
+          <input data-testid="listener-pin-input" value={pin} onChange={(e) => setPin(e.target.value)} placeholder={t("Enter event PIN")}
             className="w-full h-12 mb-4 rounded-xl bg-white/5 border border-white/10 px-4 text-center text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
         )}
 
         {!listening ? (
           <button data-testid="listener-listen-button" onClick={listen}
             className="w-full h-16 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xl font-bold shadow-[0_0_30px_rgba(16,185,129,0.35)] active:scale-[0.98] transition flex items-center justify-center gap-3">
-            <Headphones className="h-6 w-6" /> LISTEN
-          </button>
+            <Headphones className="h-6 w-6" />{t("LISTEN")}</button>
         ) : (
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <button aria-label={paused ? "Play audio" : "Pause audio"} data-testid="listener-playpause" onClick={togglePlay} className="h-14 w-14 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white">
+              <button aria-label={paused ? t("Play audio") : t("Pause audio")} data-testid="listener-playpause" onClick={togglePlay} className="h-14 w-14 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white">
                 {!paused ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6 fill-white" />}
               </button>
               <Volume2 className="h-5 w-5 text-slate-400" />
               <input aria-label="Volume" type="range" min="0" max="1" step="0.05" value={volume}
                 onChange={(e) => { setVolume(+e.target.value); if (audioRef.current) audioRef.current.volume = +e.target.value; }}
                 className="flex-1 accent-emerald-500" data-testid="listener-volume" />
-              <button data-testid="listener-stop" onClick={stop} className="px-3 h-10 rounded-lg border border-white/15 text-slate-300 text-sm">Stop</button>
+              <button data-testid="listener-stop" onClick={stop} className="px-3 h-10 rounded-lg border border-white/15 text-slate-300 text-sm">{t("Stop")}</button>
             </div>
             <div className="flex items-center justify-center gap-2 text-xs font-mono uppercase tracking-widest text-slate-500" data-testid="listener-conn">
               {conn === "connected" ? <Wifi className="h-4 w-4 text-emerald-400" /> : <WifiOff className="h-4 w-4 text-amber-400" />}
               {conn}
             </div>
             {!live && conn === "connected" && (
-              <p className="text-amber-400 text-sm font-mono">Translation temporarily unavailable — resuming automatically…</p>
+              <p className="text-amber-400 text-sm font-mono">{t("Translation temporarily unavailable — resuming automatically…")}</p>
             )}
             {caption && (
               <div data-testid="listener-caption" className="mt-4 rounded-xl bg-white/5 border border-white/10 p-4 text-left text-lg leading-relaxed text-slate-100 max-h-52 overflow-y-auto whitespace-pre-wrap">
@@ -251,7 +253,7 @@ export default function Listener() {
             audioRef.current?.pause();
           }
         }} />
-        <p className="mt-10 text-[11px] text-slate-600 font-mono">No account needed · audio is not recorded</p>
+        <p className="mt-10 text-[11px] text-slate-600 font-mono">{t("No account needed · audio is not recorded")}</p>
       </div>
     </Shell>
   );
@@ -260,6 +262,7 @@ export default function Listener() {
 const Shell = ({ children }) => (
   <div className="tb-listener min-h-screen bg-[#0A0D14] text-slate-100 font-sans flex items-center justify-center p-6"
     style={{ backgroundImage: "radial-gradient(1000px 500px at 50% -10%, rgba(16,185,129,0.10), transparent 60%)" }}>
+    <div className="absolute top-4 right-4"><InterfaceLanguage /></div>
     {children}
   </div>
 );
