@@ -22,7 +22,7 @@ export function useBroadcast({ API, engineRef, targetLang, profile, start, stop,
     const generation = ++generationRef.current;
     const stream = engineRef.current.audioEl?.srcObject;
     if (!stream) throw new Error("Translated audio is not available yet. Start translation and retry.");
-    const b = new OperatorBroadcaster(`${WS_BASE}/api/ws/${event.id}?role=operator`, { token: event.operator_token, onCount: setListeners, onStatus: () => setBroadcasting(false) });
+    const b = new OperatorBroadcaster(`${WS_BASE}/api/ws/${event.id}?role=operator`, { token: event.operator_token, onCount: setListeners, onStatus: (status) => { setBroadcasting(false); setListeners(0); if (status.error) setError(status.error); } });
     broadcasterRef.current?.stop();
     broadcasterRef.current = b;
     await b.start(stream);
@@ -30,7 +30,7 @@ export function useBroadcast({ API, engineRef, targetLang, profile, start, stop,
     streamRef.current = stream;
     setBroadcasting(true);
     return true;
-  }, [engineRef]);
+  }, [engineRef, setError]);
 
   const _detach = useCallback(() => {
     generationRef.current += 1;

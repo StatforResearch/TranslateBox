@@ -23,7 +23,7 @@ export const BroadcastPanel = () => {
   const listenUrl = eventInfo ? `${window.location.origin}/e/${eventInfo.id}` : "";
 
   useEffect(() => {
-    if (listenUrl) QRCode.toDataURL(listenUrl, { width: 320, margin: 1 }).then(setQr).catch(() => {});
+    if (listenUrl) QRCode.toDataURL(listenUrl, { width: 512, margin: 4 }).then(setQr).catch(() => {});
   }, [listenUrl]);
 
   const doCreate = async () => { setBusy(true); setError(""); try { await createEvent({ name, organization: org, pin }); } catch (e) { setError(e.message); } finally { setBusy(false); } };
@@ -64,12 +64,15 @@ export const BroadcastPanel = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-4 items-center">
-          {qr && <img data-testid="event-qr" src={qr} alt="QR" className="h-28 w-28 rounded-lg bg-white p-1.5" />}
+          {qr && <img data-testid="event-qr" src={qr} alt="QR" className="h-48 w-48 mx-auto rounded-lg bg-white p-2" />}
           <div className="min-w-0 space-y-2 scroll-mt-24" id="share">
             <h3 className="font-bold">3 · {t("Share and go live")}</h3>
             <p className="font-semibold">{eventInfo.name} · {eventInfo.target.toUpperCase()}</p>
             <button onClick={newEvent} disabled={busy || active || broadcasting} className="text-sm underline disabled:opacity-40">{t("Choose another event / New event")}</button>
-            <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400">{t("Scan to listen")}</p>
+            <p className="text-sm font-semibold">{t("Scan to listen")}</p>
+            <p className="text-sm text-slate-500">{t("On your phone: scan with the camera, open the link in Chrome, then tap LISTEN. Scanning alone does not start audio.")}</p>
+            {!broadcasting && <p role="status" className="rounded-lg bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">{t("Phone audio is not being broadcast. Press START EVENT, even if translation already works on this computer.")}</p>}
+            {broadcasting && listeners === 0 && <p role="status" className="text-sm text-slate-500">{t("Broadcast ready. No phone connected yet: open the listener link and tap LISTEN.")}</p>}
             <a data-testid="event-listen-url" href={listenUrl} target="_blank" rel="noreferrer" className="block text-sm font-mono text-emerald-600 dark:text-emerald-400 truncate">{listenUrl}</a>
             {['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) && <p className="text-sm text-amber-600 dark:text-amber-400">{t("Local link: this QR code only works on this computer. Use an accessible HTTPS address for phones and other listeners.")}</p>}
             <button className="rounded-lg border px-4 py-2 text-sm font-semibold" onClick={async () => {

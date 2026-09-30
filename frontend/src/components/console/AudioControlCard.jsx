@@ -11,7 +11,7 @@ export const AudioControlCard = () => {
   const { t } = useLocale();
   const {
     active, sourceLang, setSourceLang, targetLang, setTargetLang,
-    devices, selectedDevice, setSelectedDevice, captureSource, setCaptureSource,
+    devices, selectedDevice, setSelectedDevice, captureSource,
     outputDevices, selectedOutput, setOutputDevice, outputSupported,
     ambientMode, setAmbientMode, level, testing, testInput, stopTest,
   } = useTranslationSession();
@@ -32,14 +32,7 @@ export const AudioControlCard = () => {
       </div>
 
       <p className="text-sm text-slate-500">{t("Voix adaptée au locuteur : le modèle de traduction actuel ajuste le timbre à la voix source et ne propose pas de sélection de voix fixe.")}</p>
-      <div>
-        <label htmlFor="capture-source" className="text-sm font-semibold">{t("Source audio")}</label>
-        <select id="capture-source" value={captureSource} disabled={active || testing} onChange={e => setCaptureSource(e.target.value)} className="ml-3 rounded-lg border p-2 bg-white dark:bg-slate-900">
-          <option value="mic">{t("Microphone · salle / enceinte")}</option>
-          <option value="display">{t("Audio d’un onglet · vidéo sur ce Mac")}</option>
-        </select>
-        {captureSource === 'display' && <p className="mt-2 text-sm text-slate-500">{t("Ouvrez la vidéo et cette console dans Chrome. Au démarrage, choisissez l’onglet de la vidéo et cochez Partager l’audio. Ne sélectionnez pas la console de traduction.")}</p>}
-      </div>
+      <p className="rounded-lg bg-sky-500/10 p-3 text-sm">{t("Microphone only. For a video on your Mac, play it through the speakers and enable Ambient / TV mode below. Listen to the translation on your phone with headphones.")}</p>
 
       <div className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr_auto] gap-3 md:gap-4 items-end pt-1 border-t border-slate-100 dark:border-slate-800/60">
         <div className="pt-3">

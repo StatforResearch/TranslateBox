@@ -93,24 +93,6 @@ export class TranslationEngine {
   // ---- audio capture ----
   async _capture(deviceId, source, ambient) {
     if (!navigator.mediaDevices?.getUserMedia) throw new Error("Microphone access requires HTTPS or localhost and a supported browser.");
-    if (source === "display") {
-      let stream;
-      try {
-        stream = await navigator.mediaDevices.getDisplayMedia({
-          video: true,
-          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-        });
-      } catch (e) {
-        throw new Error("MIC_PERMISSION:" + e.name + ":" + e.message);
-      }
-      if (!stream.getAudioTracks().length) {
-        stream.getTracks().forEach((t) => t.stop());
-        throw new Error('NO_AUDIO_INPUT::No tab/screen audio was shared. Re-share and enable "Share tab audio".');
-      }
-      // Keep the capture session alive; only audio is sent to the peer.
-      // All tracks, including video, are released on stop.
-      return stream;
-    }
     let stream;
     try {
       // Ambient/TV mode disables the browser's echo/noise/gain processing so
@@ -236,7 +218,7 @@ export class TranslationEngine {
     const generation = ++this._generation;
     this.active = true;
     this.deviceId = deviceId;
-    this.captureSource = source;
+    this.captureSource = "mic";
     this.ambient = ambient;
     this.targetLanguage = targetLanguage;
     this.instructions = instructions;

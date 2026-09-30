@@ -75,3 +75,17 @@ test('listener distinguishes buffering, playback and reconnection, and resizes c
   act(() => sockets[0].onclose({code:1006}));
   expect(screen.getByTestId('listener-status').textContent).toContain('Reconnecting');
 });
+
+test('blocked automatic playback exposes a single-tap play retry', async () => {
+  let opened, updated;
+  const sb = {updating:false, buffered:{length:1,start:()=>0,end:()=>2}, addEventListener:(name,fn)=>{if(name==='updateend')updated=fn;},appendBuffer:vi.fn()};
+  global.MediaSource = class {static isTypeSupported(){return true;} addEventListener(name,fn){if(name==='sourceopen')opened=fn;} addSourceBuffer(){return sb;}};
+  const play = vi.spyOn(HTMLMediaElement.prototype,'play').mockRejectedValueOnce(new Error('NotAllowedError')).mockResolvedValue();
+  render(<MemoryRouter initialEntries={['/e/test']}><Routes><Route path="/e/:id" element={<Listener/>}/></Routes></MemoryRouter>);
+  await screen.findByText('Test event'); fireEvent.click(screen.getByText('LISTEN'));
+  await act(async () => {opened(); updated();});
+  expect(screen.getByText('Press play to enable audio.')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', {name:'Play audio'}));
+  expect(play).toHaveBeenCalledTimes(2);
+  expect(sockets.length).toBe(1);
+});

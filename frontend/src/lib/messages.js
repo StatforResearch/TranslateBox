@@ -1511,5 +1511,25 @@ export const messages = {
   "Returning home closes this session.": {
     "en": "Returning home closes this session.",
     "fr": "Le retour à l’accueil ferme cette session."
+  },
+  "Microphone only. For a video on your Mac, play it through the speakers and enable Ambient / TV mode below. Listen to the translation on your phone with headphones.": {
+    "en": "Microphone only. For a video on your Mac, play it through the speakers and enable Ambient / TV mode below. Listen to the translation on your phone with headphones.",
+    "fr": "Microphone uniquement. Pour une vidéo sur le Mac, utilisez les haut-parleurs et activez le mode ambiant / TV ci-dessous. Écoutez la traduction au casque sur votre téléphone."
+  },
+  "Scanning the QR code opens the event. Tap LISTEN below to connect and enable sound.": {
+    "en": "Scanning the QR code opens the event. Tap LISTEN below to connect and enable sound.",
+    "fr": "Le QR code ouvre l’événement. Appuyez sur ÉCOUTER ci-dessous pour vous connecter et activer le son."
+  },
+  "On your phone: scan with the camera, open the link in Chrome, then tap LISTEN. Scanning alone does not start audio.": {
+    "en": "On your phone: scan with the camera, open the link in Chrome, then tap LISTEN. Scanning alone does not start audio.",
+    "fr": "Sur le téléphone : scannez avec l’appareil photo, ouvrez le lien dans Chrome, puis appuyez sur ÉCOUTER. Scanner seul ne lance pas le son."
+  },
+  "Phone audio is not being broadcast. Press START EVENT, even if translation already works on this computer.": {
+    "en": "Phone audio is not being broadcast. Press START EVENT, even if translation already works on this computer.",
+    "fr": "Le son n’est pas diffusé vers les téléphones. Appuyez sur DÉMARRER L’ÉVÉNEMENT, même si la traduction fonctionne déjà sur cet ordinateur."
+  },
+  "Broadcast ready. No phone connected yet: open the listener link and tap LISTEN.": {
+    "en": "Broadcast ready. No phone connected yet: open the listener link and tap LISTEN.",
+    "fr": "Diffusion prête. Aucun téléphone connecté : ouvrez le lien auditeur et appuyez sur ÉCOUTER."
   }
 };

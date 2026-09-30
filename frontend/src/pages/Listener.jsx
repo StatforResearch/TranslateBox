@@ -134,7 +134,7 @@ export default function Listener() {
             }
             if (alignedRef.current && bufferingRef.current && ahead >= 1) {
               bufferingRef.current = false;
-              audio.play().catch(() => setErr("Press play to enable audio."));
+              audio.play().catch(() => { pausedRef.current = true; setPaused(true); setPlayback("blocked"); setErr("Press play to enable audio."); });
             }
           }
           pump();
@@ -192,7 +192,7 @@ export default function Listener() {
     pausedRef.current = !pausedRef.current;
     setPaused(pausedRef.current);
     if (pausedRef.current) a.pause();
-    else a.play().catch(() => setErr("Press play again to enable audio."));
+    else a.play().catch(() => { pausedRef.current = true; setPaused(true); setPlayback("blocked"); setErr("Press play to enable audio."); });
   };
 
   if (err && !info) {
@@ -218,6 +218,7 @@ export default function Listener() {
           <span className="text-xs font-mono uppercase tracking-widest text-slate-400">{t(!listening ? (live ? "Ready to listen" : "Waiting for speaker…") : conn === "disconnected" ? "Reconnecting…" : conn === "connecting" ? "Connecting…" : paused ? "Audio paused" : !live ? "Waiting for speaker…" : playback === "playing" ? "Translation playing" : "Buffering audio…")}</span>
         </div>
 
+        <p className="mb-5 text-sm text-slate-300">{t("Scanning the QR code opens the event. Tap LISTEN below to connect and enable sound.")}</p>
         {needPin && !listening && (
           <input data-testid="listener-pin-input" value={pin} onChange={(e) => setPin(e.target.value)} placeholder={t("Enter event PIN")}
             className="w-full h-12 mb-4 rounded-xl bg-white/5 border border-white/10 px-4 text-center text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500" />

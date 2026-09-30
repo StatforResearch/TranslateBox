@@ -69,3 +69,20 @@ test('late WebRTC stats cannot update a stopped session', async () => {
     expect(pc.getStats).toHaveBeenCalledTimes(1);
   } finally { vi.useRealTimers(); }
 });
+
+test('legacy display selection never requests screen sharing', async () => {
+  const stream = {getAudioTracks: () => [{}]};
+  const getUserMedia = vi.fn().mockResolvedValue(stream);
+  const getDisplayMedia = vi.fn();
+  const previous = Object.getOwnPropertyDescriptor(navigator, 'mediaDevices');
+  Object.defineProperty(navigator, 'mediaDevices', {configurable: true, value: {getUserMedia, getDisplayMedia}});
+  try {
+    const engine = new TranslationEngine({apiBase: '/api'});
+    expect(await engine._capture('', 'display', true)).toBe(stream);
+    expect(getDisplayMedia).not.toHaveBeenCalled();
+    expect(getUserMedia).toHaveBeenCalledWith(expect.objectContaining({video: false}));
+  } finally {
+    if (previous) Object.defineProperty(navigator, 'mediaDevices', previous);
+    else delete navigator.mediaDevices;
+  }
+});

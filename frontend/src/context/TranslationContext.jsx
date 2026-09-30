@@ -61,7 +61,7 @@ export function TranslationProvider({ children }) {
   const [outputDevices, setOutputDevices] = useState([]);
   const [selectedOutput, setSelectedOutput] = usePersistentState("tbl-output", "");
   const [ambientMode, setAmbientMode] = usePersistentState("tbl-ambient", false);
-  const [captureSource, setCaptureSource] = useState("mic"); // 'mic' | 'display'
+  const captureSource = "mic";
   const [sourceLang, setSourceLang] = usePersistentState("tbl-source", "auto");
   const [targetLang, setTargetLang] = usePersistentState("tbl-target", "en");
   const [modeKey, setModeKey] = usePersistentState("tbl-mode", "GENERAL");
@@ -268,7 +268,7 @@ export function TranslationProvider({ children }) {
   const value = {
     status, sourceText, targetText, logs, rawEvents, error, active,
     translationMuted, inputMuted, duration, translatedSeconds,
-    devices, selectedDevice, setSelectedDevice, captureSource, setCaptureSource,
+    devices, selectedDevice, setSelectedDevice, captureSource,
     outputDevices, selectedOutput, setOutputDevice, outputSupported: engineRef.current.outputSupported(),
     ambientMode, setAmbientMode,
     targetLang, setTargetLang, modeKey, setModeKey, customInstructions, setCustomInstructions,
